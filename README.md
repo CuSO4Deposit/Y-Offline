@@ -1,0 +1,3 @@
+# MUG-scoredb
+
+self-use
