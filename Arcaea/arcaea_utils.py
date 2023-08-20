@@ -76,7 +76,9 @@ if log_level == "DEBUG":
 
 
 @logger.catch
-def getData(table: str, user: str, limit: int, order=("[play_ptt]", "DESC")):
+def getData(
+    table: str, user: str, limit: int, order=("[play_ptt]", "DESC")
+) -> list[playRecord]:
     arcsong_path = str((db_path / "arcsong.db").resolve())
     con = sqlite3.connect(db_path / "user.db")
     cur = con.cursor()
@@ -122,3 +124,108 @@ if log_level == "DEBUG":
     data = getData("best", "temp", 30)
     logger.debug(f"[getData] {data}")
     # to be continued with addRecord()
+
+
+def addRecord_best(record: playRecord) -> bool:
+    con = sqlite3.connect(db_path / "user.db")
+    cur = con.cursor()
+    cur.execute(
+        """SELECT [play_ptt], [time] FROM best WHERE [user] = ?
+        ORDER BY [play_ptt] ASC""",
+        (record.user_id,),
+    )
+    b30 = cur.fetchall()
+    cur.execute(
+        """SELECT [play_ptt], [time], [user] FROM best 
+        WHERE [song_id] = ? AND [rating_class] = ? AND [user] = ?""",
+        (
+            record.song_id,
+            record.rating_class,
+            record.user_id,
+        ),
+    )
+    thisChart = cur.fetchone()
+
+    # record has play_ptt lower than the lowest one in b30
+    if len(b30) == 30 and record.play_ptt <= b30[0][0]:
+        pass
+    # this chart is already in b30 and has higher play_ptt
+    elif thisChart is not None and thisChart[0] > record.play_ptt:
+        pass
+    else:
+        # this chart isn't in b30 and b30 is full, record replace the lowest one in b30
+        if len(b30) == 30 and thisChart is None:
+            cur.execute(
+                "DELETE FROM best WHERE [user] = ? AND [time] = ?",
+                (
+                    record.user_id,
+                    b30[0][1],
+                ),
+            )
+        # this chart is in b30 and record has higher play_ptt, replace itself
+        elif thisChart is not None:
+            cur.execute(
+                "DELETE FROM best WHERE [user] = ? AND [time] = ?",
+                (
+                    record.user_id,
+                    thisChart[1],
+                ),
+            )
+        # else, this chart isn't in b30 and b30 is not full, simply insert
+
+        cur.execute(
+            """INSERT INTO best ([song_id], [rating_class],
+            [max_pure], [pure], [far], [play_ptt], [time], [user])
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                record.song_id,
+                record.rating_class,
+                record.max_pure,
+                record.pure,
+                record.far,
+                record.play_ptt,
+                record.time,
+                record.user_id,
+            ),
+        )
+        con.commit()
+        return True
+    return False
+
+
+# test TODO
+
+
+@logger.catch
+def addRecord_recent(record: playRecord) -> bool:
+    # TODO
+    pass
+
+
+@logger.catch
+def addRecord_record(record: playRecord) -> bool:
+    con = sqlite3.connect(db_path / "user.db")
+    cur = con.cursor()
+    cur.execute(
+        """INSERT INTO record ([song_id], [rating_class],
+        [max_pure], [pure], [far], [time], [user])
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            record.song_id,
+            record.rating_class,
+            record.max_pure,
+            record.pure,
+            record.far,
+            record.time,
+            record.user_id,
+        ),
+    )
+    con.commit()
+    return True
+
+
+def addRecord(record: playRecord) -> None:
+    addRecord_record(record)
+    addRecord_best(record)
+    addRecord_recent(record)
