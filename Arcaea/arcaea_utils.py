@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from loguru import logger
 import sqlite3
-from time import gmtime, strftime
+from time import sleep
 from time import time as current_time
 from __init__ import db_path, log_level
 
@@ -14,7 +14,7 @@ class playRecord(object):
     pure: int
     max_pure: int
     far: int
-    time: int = int(current_time())
+    time: int
 
     lost: int = field(init=False)
     name: str = field(init=False)
@@ -35,6 +35,7 @@ class playRecord(object):
             ),
         )
         self.rating, self.note, name_jp, name_en = cur.fetchone()
+        con.commit()
         self.name = name_en if name_jp == "" else name_jp
         con.close()
 
@@ -70,9 +71,11 @@ if log_level == "DEBUG":
 
     pure = 1278
     far = 1
-    record = playRecord(user_id, song_id, rating_class, pure, max_pure, far)
+    record = playRecord(
+        user_id, song_id, rating_class, pure, max_pure, far, time=int(current_time())
+    )
     assert record.score == 9997367
-    logger.debug(f"[playRecord] {record.time}")
+    logger.debug(f"[playRecord time] {record.time}, expected: 1xxxxxxxxx")
 
 
 @logger.catch
@@ -96,6 +99,8 @@ def getData(
 
     cur.execute(query, (user,))
     res = cur.fetchall()
+    con.commit()
+    con.close()
     # [name_jp]     [name_en]   [rating_class]  [note]      [pure]
     # [max_pure]    [far]       [rating]        [play_ptt]  [time]
     # [song_id]
@@ -112,18 +117,11 @@ def getData(
             pure=i[4],
             max_pure=i[5],
             far=i[6],
-            time=gmtime(i[9]),
+            time=i[9],
         )
         for i in res
     ]
-    logger.success(f"[getData] success. user: {user}, table: {table}")
     return res
-
-
-if log_level == "DEBUG":
-    data = getData("best", "temp", 30)
-    logger.debug(f"[getData] {data}")
-    # to be continued with addRecord()
 
 
 def addRecord_best(record: playRecord) -> bool:
@@ -135,6 +133,9 @@ def addRecord_best(record: playRecord) -> bool:
         (record.user_id,),
     )
     b30 = cur.fetchall()
+    con.commit()
+    cur.close()
+    cur = con.cursor()
     cur.execute(
         """SELECT [play_ptt], [time], [user] FROM best 
         WHERE [song_id] = ? AND [rating_class] = ? AND [user] = ?""",
@@ -145,6 +146,9 @@ def addRecord_best(record: playRecord) -> bool:
         ),
     )
     thisChart = cur.fetchone()
+    cur.close()
+    con.commit()
+    cur = con.cursor()
 
     # record has play_ptt lower than the lowest one in b30
     if len(b30) == 30 and record.play_ptt <= b30[0][0]:
@@ -189,7 +193,9 @@ def addRecord_best(record: playRecord) -> bool:
             ),
         )
         con.commit()
+        con.close()
         return True
+    con.close()
     return False
 
 
@@ -209,9 +215,11 @@ def check_highscore(record: playRecord) -> bool:
         ),
     )
     former = cur.fetchone()
+    con.commit()
+    con.close()
     if former is None:
-        former = 0
-    return record.score >= former
+        former = (0,)
+    return record.play_ptt >= former[0]
 
 
 @logger.catch
@@ -220,10 +228,8 @@ def splitR30(r30: list[playRecord]):
     r10 = []
     r10_candidate = []
     for r in r30:
-        if len(r10) == 10:
-            break
         info = (r.song_id, r.rating_class)
-        if info not in chart_list:
+        if len(r10) < 10 and info not in chart_list:
             chart_list.append(info)
             r10.append(r)
         else:
@@ -241,6 +247,9 @@ def addRecord_recent(record: playRecord) -> bool:
         (record.user_id,),
     )
     chartDict = {(i[0], i[1]): i[2] for i in cur.fetchall()}
+    cur.close()
+    con.commit()
+    cur = con.cursor()
     r30 = getData("recent", record.user_id, 30)
 
     if len(r30) == 30:
@@ -264,7 +273,9 @@ def addRecord_recent(record: playRecord) -> bool:
                 target = r10_candidate
 
         else:
-            if (record in r30) and (len(chartDict) <= 10):
+            if ((record.song_id, record.rating_class) in chartDict) and (
+                len(chartDict) <= 10
+            ):
                 samechart = []
                 for r in r30:
                     if (
@@ -301,6 +312,8 @@ def addRecord_recent(record: playRecord) -> bool:
         ),
     )
     con.commit()
+    cur.close()
+    con.close()
     return True
 
 
@@ -310,8 +323,8 @@ def addRecord_record(record: playRecord) -> bool:
     cur = con.cursor()
     cur.execute(
         """INSERT INTO record ([song_id], [rating_class],
-        [max_pure], [pure], [far], [time], [user])
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        [max_pure], [pure], [far], [play_ptt], [time], [user])
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             record.song_id,
@@ -319,11 +332,13 @@ def addRecord_record(record: playRecord) -> bool:
             record.max_pure,
             record.pure,
             record.far,
+            record.play_ptt,
             record.time,
             record.user_id,
         ),
     )
     con.commit()
+    con.close()
     return True
 
 
@@ -334,3 +349,140 @@ def addRecord(record: playRecord) -> bool:
     addRecord_record(record)
     update_b30 = addRecord_best(record)
     return update_b30
+
+
+def _pretty_print(record_list: list[playRecord]) -> str:
+    string = ""
+    for i in record_list:
+        string += f"{i.name[:16]: <16}\t{round(i.play_ptt, 2)}\t{i.time}\n"
+    return string
+
+
+if log_level == "DEBUG":
+    con = sqlite3.connect(db_path / "user.db")
+    cur = con.cursor()
+    cur.execute("""SELECT * FROM record WHERE [user] = 'test'""")
+    user = "test"
+    if cur.fetchone() is None:
+        test_b33 = [
+            ["grievouslady", 2, 1370, 1189, 52],
+            ["lastcelebration", 2, 1434, 1293, 32],
+            ["valhallazero", 2, 1142, 1012, 26],
+            ["battlenoone", 2, 1037, 936, 5],
+            ["cyaegha", 2, 1317, 1121, 36],
+            ["fractureray", 2, 1203, 1052, 43],
+            ["alexandrite", 2, 1024, 884, 13, 3],
+            ["akinokagerou", 2, 1068, 951, 6],
+            ["singularity", 2, 1062, 902, 30],
+            ["memoryforest", 2, 968, 879, 9],
+            ["halcyon", 2, 1181, 1050, 28],
+            ["sheriruth", 2, 1127, 953, 20],
+            ["sulfur", 2, 1038, 951, 5],
+            ["worldfragments", 2, 1372, 12, 3],
+            ["dreadnought", 2, 1089, 942, 9],
+            ["amygdata", 2, 1187, 1105, 11, 1],
+            ["themessage", 2, 984, 911, 5],
+            ["corruption", 2, 1279, 1206, 8],
+            ["metallicpunisher", 2, 1206, 1084, 20],
+            ["trappola", 2, 1023, 920, 17],
+            ["tothemilkyway", 2, 1346, 1190, 28],
+            ["heavensdoor", 2, 1084, 977, 11],
+            ["gimmick", 2, 729, 669, 4],
+            ["fractureray", 1, 1336, 1269, 6],
+            ["dataerror", 2, 949, 880, 5],
+            ["blrink", 2, 1001, 868, 12],
+            ["supernova", 2, 1109, 979, 10],
+            ["yozakurafubuki", 2, 927, 815, 4],
+            ["lapis", 2, 916, 827, 4],
+            ["eveninginscarlet", 2, 915, 829, 6],
+            ["etherstrike", 2, 1133, 989, 26],
+            ["melodyoflove", 2, 920, 819, 10],
+            ["aiueoon", 2, 984, 889, 5],
+        ]
+        cur.close()
+        for i in test_b33:
+            pr = playRecord(
+                user, i[0], i[1], i[2], i[3], i[4], time=int(current_time())
+            )
+            addRecord(pr)
+            sleep(1)
+    con.commit()
+    cur = con.cursor()
+    b30 = getData("best", user, 50, order=("[time]", "ASC"))
+    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+    _, r10c = splitR30(r30)
+    # b30 000-, 010-
+    # r30 101
+    logger.debug(f"[b30 1]\n{_pretty_print(b30[9:13])}\n")
+    logger.debug(
+        f"[r30 1], expected: es, melody, aiueoon replaces 10, 11, 12 in b30 (0-indexed)\n{_pretty_print(r30[9:13])}\n"
+    )
+    logger.debug(
+        f"[r30 2], expected: es, melody, aiueoon in r10c\n{_pretty_print(r10c[-3:])}\n"
+    )
+
+    # b30 100-, replace the lowest
+    logger.debug(f"[b30 2] {_pretty_print(b30[-2:])}")
+    pr = playRecord(user, "testify", 3, 2219, 2219, 0, time=int(current_time()))
+    addRecord(pr)
+    sleep(1)
+    b30 = getData("best", user, 50, order=("[play_ptt]", "DESC"))
+    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+
+    logger.debug(
+        f"[b30 3] {_pretty_print(b30[-2:])}, expected: the last one of b30-2 is replaced"
+    )
+
+    # b30 1011
+    logger.debug(f"[b30 4] {_pretty_print(b30[0:1])}")
+    pr = playRecord(user, "testify", 3, 2220, 2220, 0, time=int(current_time()))
+    addRecord(pr)
+    sleep(1)
+    b30 = getData("best", user, 50, order=("[play_ptt]", "DESC"))
+    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+    logger.debug(f"[b30 5] {_pretty_print(b30[0:1])}, expected: b30-4 updated")
+
+    # b30 1010
+    pr = playRecord(user, "testify", 3, 2218, 2218, 0, time=int(current_time()))
+    addRecord(pr)
+    sleep(1)
+    b30 = getData("best", user, 50, order=("[play_ptt]", "DESC"))
+    logger.debug(f"[b30 6] {_pretty_print(b30[0:1])}, expected: b30-5 not updated")
+
+    # b30 0010
+    # r30 011
+    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+    logger.debug(f"[r30 3] {_pretty_print(r30[0:1])}")
+    pr = playRecord(user, "lapis", 2, 0, 0, 0, time=int(current_time()))
+    addRecord(pr)
+    sleep(1)
+    b30 = getData("best", user, 50, order=("[play_ptt]", "DESC"))
+    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+    logger.debug(f"[b30 7] {_pretty_print(b30[-5:])}, expected: lapis not updated")
+    logger.debug(
+        f"[r30 4] {_pretty_print(r30[-3:])}, expected: r30-3's last record updated to lapis"
+    )
+
+    # r30 110
+    for _ in range(30):
+        pr = playRecord(user, "testify", 3, 2220, 2220, 0, time=int(current_time()))
+        addRecord(pr)
+        sleep(1)
+    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+    r10, r10c = splitR30(r30)
+    logger.debug(
+        f"[r30 5] {_pretty_print(r10c)}, expected: testify with idendical play_ptt"
+    )
+
+    # r30 010
+    logger.debug(f"[r30 6] {_pretty_print(r10)}")
+    pr = playRecord(user, "fractureray", 2, 279, 278, 0, time=int(current_time()))
+    addRecord(pr)
+    sleep(1)
+    r30 = getData("recent", user, 30, order=("[time]", "ASC"))
+    r10, r10c = splitR30(r30)
+    logger.debug(
+        f"[r30 7] {_pretty_print(r10)}, expected: fractureray replaces itself on r10"
+    )
+
+    con.close()
