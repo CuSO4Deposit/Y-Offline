@@ -329,6 +329,6 @@ def addRecord_record(record: playRecord) -> bool:
 
 @logger.catch
 def addRecord(record: playRecord) -> None:
+    addRecord_recent(record)
     addRecord_record(record)
     addRecord_best(record)
-    addRecord_recent(record)
