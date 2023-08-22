@@ -24,7 +24,9 @@ CREATE TABLE record(
         [rating_class] INTEGER NOT NULL DEFAULT 2,
         [pure] INTEGER NOT NULL,
         [max_pure] INTEGER NOT NULL,
-        [far] INTEGER NOT NULL, [time] INTEGER NOT NULL,
+        [far] INTEGER NOT NULL, 
+        [play_ptt] FLOAT NOT NULL,
+        [time] INTEGER NOT NULL,
         [user] TEXT NOT NULL,
         PRIMARY KEY([time], [user]));
 CREATE TABLE best(
