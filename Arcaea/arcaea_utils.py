@@ -193,13 +193,115 @@ def addRecord_best(record: playRecord) -> bool:
     return False
 
 
-# test TODO
+@logger.catch
+def check_highscore(record: playRecord) -> bool:
+    """True if this record updates high_score"""
+    con = sqlite3.connect(db_path / "user.db")
+    cur = con.cursor()
+    cur.execute(
+        """SELECT [play_ptt] FROM record
+        WHERE [user] = ? and [song_id] = ? and [rating_class] = ?
+        ORDER BY [play_ptt] DESC LIMIT 1""",
+        (
+            record.user_id,
+            record.song_id,
+            record.rating_class,
+        ),
+    )
+    former = cur.fetchone()
+    if former is None:
+        former = 0
+    return record.score >= former
+
+
+@logger.catch
+def splitR30(r30: list[playRecord]):
+    chart_list = []
+    r10 = []
+    r10_candidate = []
+    for r in r30:
+        if len(r10) == 10:
+            break
+        info = (r.song_id, r.rating_class)
+        if info not in chart_list:
+            chart_list.append(info)
+            r10.append(r)
+        else:
+            r10_candidate.append(r)
+    return r10, r10_candidate
 
 
 @logger.catch
 def addRecord_recent(record: playRecord) -> bool:
-    # TODO
-    pass
+    con = sqlite3.connect(db_path / "user.db")
+    cur = con.cursor()
+    cur.execute(
+        """SELECT [song_id], [rating_class], COUNT(*) FROM recent
+        WHERE [user] = ? GROUP BY [song_id], [rating_class]""",
+        (record.user_id,),
+    )
+    chartDict = {(i[0], i[1]): i[2] for i in cur.fetchall()}
+    r30 = getData("recent", record.user_id, 30)
+
+    if len(r30) == 30:
+        target = []
+
+        # EX / update-high-score protection, this update won't decrease r10.
+        if (record.score >= 9800000) or (check_highscore(record)):
+            _, r10_candidate = splitR30(r30)
+            if (record in r30) and (len(chartDict) <= 10):
+                chart_dict = {}
+                for i in r10_candidate:
+                    info = (i.song_id, i.rating_class)
+                    if info not in chart_dict:
+                        chart_dict[info] = 1
+                    else:
+                        chart_dict[info] += 1
+                for i in r10_candidate:
+                    if chart_dict[(i.song_id, i.rating_class)] > 1:
+                        target.append(i)
+            else:
+                target = r10_candidate
+
+        else:
+            if (record in r30) and (len(chartDict) <= 10):
+                samechart = []
+                for r in r30:
+                    if (
+                        r.song_id == record.song_id
+                        and r.rating_class == record.rating_class
+                    ):
+                        samechart.append(r)
+                target = samechart
+            else:
+                target = r30
+
+        record_to_replace = min(target, key=lambda x: x.time)
+        cur.execute(
+            """DELETE FROM recent WHERE [time] = ? AND [user] = ?""",
+            (
+                record_to_replace.time,
+                record_to_replace.user_id,
+            ),
+        )
+
+    cur.execute(
+        """INSERT INTO recent ([song_id], [rating_class],
+            [max_pure], [pure], [far], [play_ptt], [time], [user])
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            record.song_id,
+            record.rating_class,
+            record.max_pure,
+            record.pure,
+            record.far,
+            record.play_ptt,
+            record.time,
+            record.user_id,
+        ),
+    )
+    con.commit()
+    return True
 
 
 @logger.catch
@@ -225,6 +327,7 @@ def addRecord_record(record: playRecord) -> bool:
     return True
 
 
+@logger.catch
 def addRecord(record: playRecord) -> None:
     addRecord_record(record)
     addRecord_best(record)
