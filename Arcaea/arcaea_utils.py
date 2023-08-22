@@ -328,7 +328,9 @@ def addRecord_record(record: playRecord) -> bool:
 
 
 @logger.catch
-def addRecord(record: playRecord) -> None:
+def addRecord(record: playRecord) -> bool:
+    """True if this record updates b30."""
     addRecord_recent(record)
     addRecord_record(record)
-    addRecord_best(record)
+    update_b30 = addRecord_best(record)
+    return update_b30
