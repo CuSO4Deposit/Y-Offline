@@ -1,6 +1,6 @@
-# MUG-scoredb
+# (.+)-Offline
 
-for self-use
+rhythm game score database for self-use
 
 ## Arcaea best30 implementation
 
@@ -65,3 +65,5 @@ Truth table:
 | 1   | 0   | 1   | replace the earliest in r10-candidates.                     |
 | 1   | 1   | 0   | replace the earliest record in r10-candidates of its chart. |
 | 1   | 1   | 1   | replace the earliest in r10-candidates.                     |
+
+ 
