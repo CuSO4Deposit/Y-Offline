@@ -1,18 +1,19 @@
 from loguru import logger
-from pathlib import Path
 import sqlite3
+from ..utils import get_project_root
 
-
-Path("./log/").mkdir(exist_ok=True)
-log_file = Path("./log/Arcaea.log")
+project_root = get_project_root()
+log_path = project_root / "log"
+log_path.mkdir(exist_ok=True)
+log_file = log_path / "Arcaea.log"
 log_file.touch(exist_ok=True)
 
 log_level = "DEBUG"
 logger.add(log_file, level=log_level, rotation="20 MB")
 
-db_path = Path("./Arcaea/ArcaeaSongDatabase/")
+db_path = project_root / "Arcaea" / "ArcaeaSongDatabase"
 
-user_db_path = db_path / "user.db"
+user_db_path = project_root / "Arcaea" / "user.db"
 if not user_db_path.exists():
     con = sqlite3.connect(user_db_path)
     cur = con.cursor()
