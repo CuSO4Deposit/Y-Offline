@@ -1,24 +1,25 @@
-from configparser import ConfigParser
 from datetime import datetime, timedelta
-from typing import Annotated
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
+from loguru import logger
 from passlib.context import CryptContext
 from pathlib import Path
 from pydantic import BaseModel
 import sqlite3
-from ..utils import get_project_root
+from typing import Annotated
+from ..utils import get_config_info, get_project_root
 
 project_root = get_project_root()
-config_path = Path("../config.ini")
-parser = ConfigParser()
-parser.read(config_path)
+config_auth = get_config_info("Auth")
 
-DB_PATH = Path(parser["Auth"]["UserdbPath"])
-SECRET_KEY = parser["Auth"]["Secret"]
-ALGORITHM = parser["Auth"]["Algorithm"]
-ACCESS_TOKEN_EXPIRES_DAYS = parser["Auth"]["TokenExpiresDays"]
+if isinstance(config_auth, dict):
+    DB_PATH = Path(config_auth["userdbpath"])
+    SECRET_KEY = config_auth["secret"]
+    ALGORITHM = config_auth["algorithm"]
+    ACCESS_TOKEN_EXPIRES_DAYS = int(config_auth["tokenexpiresdays"])
+else:
+    logger.error("Section [Auth] not found in config")
 
 if not DB_PATH.exists():
     DB_PATH.touch()

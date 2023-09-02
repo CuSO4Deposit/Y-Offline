@@ -3,7 +3,19 @@ from loguru import logger
 import sqlite3
 from time import sleep
 from time import time as current_time
-from __init__ import db_path, log_level
+from ..utils import get_config_info, get_project_root
+
+# from __init__ import db_path, log_level
+
+
+project_root = get_project_root()
+config_arcaea = get_config_info("Arcaea")
+if isinstance(config_arcaea, dict):
+    arcsong_path = project_root / config_arcaea["dbpath"]
+    userdb_path = project_root / config_arcaea["userdbpath"]
+    log_level = config_arcaea["loglevel"]
+else:
+    logger.error("Section [Arcaea] not found in config")
 
 
 @dataclass
@@ -25,7 +37,7 @@ class playRecord(object):
 
     @logger.catch
     def __post_init__(self):
-        con = sqlite3.connect(db_path / "arcsong.db")
+        con = sqlite3.connect(arcsong_path)
         cur = con.cursor()
         cur.execute(
             "SELECT [rating], [note], [name_jp], [name_en] FROM charts WHERE [song_id] = ? AND [rating_class] = ?",
@@ -82,10 +94,12 @@ if log_level == "DEBUG":
 def getData(
     table: str, user: str, limit: int, order=("[play_ptt]", "DESC")
 ) -> list[playRecord]:
-    arcsong_path = str((db_path / "arcsong.db").resolve())
-    con = sqlite3.connect(db_path / "user.db")
+    global arcsong_path
+    global userdb_path
+    arcsong_path_str = str(arcsong_path)
+    con = sqlite3.connect(userdb_path)
     cur = con.cursor()
-    cur.execute(f"ATTACH '{arcsong_path}' AS arcsong")
+    cur.execute(f"ATTACH '{arcsong_path_str}' AS arcsong")
 
     query = f"""SELECT arcsong.charts.[name_jp], arcsong.charts.[name_en],
         {table}.[rating_class], arcsong.charts.[note], {table}.[pure],
@@ -125,7 +139,8 @@ def getData(
 
 
 def addRecord_best(record: playRecord) -> bool:
-    con = sqlite3.connect(db_path / "user.db")
+    global userdb_path
+    con = sqlite3.connect(userdb_path)
     cur = con.cursor()
     cur.execute(
         """SELECT [play_ptt], [time] FROM best WHERE [user] = ?
@@ -202,7 +217,8 @@ def addRecord_best(record: playRecord) -> bool:
 @logger.catch
 def check_highscore(record: playRecord) -> bool:
     """True if this record updates high_score"""
-    con = sqlite3.connect(db_path / "user.db")
+    global userdb_path
+    con = sqlite3.connect(userdb_path)
     cur = con.cursor()
     cur.execute(
         """SELECT [play_ptt] FROM record
@@ -239,7 +255,8 @@ def splitR30(r30: list[playRecord]):
 
 @logger.catch
 def addRecord_recent(record: playRecord) -> bool:
-    con = sqlite3.connect(db_path / "user.db")
+    global userdb_path
+    con = sqlite3.connect(userdb_path)
     cur = con.cursor()
     cur.execute(
         """SELECT [song_id], [rating_class], COUNT(*) FROM recent
@@ -319,7 +336,8 @@ def addRecord_recent(record: playRecord) -> bool:
 
 @logger.catch
 def addRecord_record(record: playRecord) -> bool:
-    con = sqlite3.connect(db_path / "user.db")
+    global userdb_path
+    con = sqlite3.connect(userdb_path)
     cur = con.cursor()
     cur.execute(
         """INSERT INTO record ([song_id], [rating_class],
@@ -359,7 +377,7 @@ def _pretty_print(record_list: list[playRecord]) -> str:
 
 
 if log_level == "DEBUG":
-    con = sqlite3.connect(db_path / "user.db")
+    con = sqlite3.connect(userdb_path)
     cur = con.cursor()
     cur.execute("""SELECT * FROM record WHERE [user] = 'test'""")
     user = "test"
