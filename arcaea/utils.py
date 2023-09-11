@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from loguru import logger
 import sqlite3
+from pathlib import Path
 from time import sleep
 from time import time as current_time
 from ..utils import get_config_info, get_project_root
@@ -92,10 +93,13 @@ if log_level == "DEBUG":
 
 @logger.catch
 def getData(
-    table: str, user: str, limit: int, order=("[play_ptt]", "DESC")
+    arcsong_path: Path,
+    userdb_path: Path,
+    table: str,
+    user: str,
+    limit: int,
+    order=("[play_ptt]", "DESC"),
 ) -> list[playRecord]:
-    global arcsong_path
-    global userdb_path
     arcsong_path_str = str(arcsong_path)
     con = sqlite3.connect(userdb_path)
     cur = con.cursor()
@@ -138,8 +142,7 @@ def getData(
     return res
 
 
-def addRecord_best(record: playRecord) -> bool:
-    global userdb_path
+def addRecord_best(userdb_path: Path, record: playRecord) -> bool:
     con = sqlite3.connect(userdb_path)
     cur = con.cursor()
     cur.execute(
@@ -215,9 +218,8 @@ def addRecord_best(record: playRecord) -> bool:
 
 
 @logger.catch
-def check_highscore(record: playRecord) -> bool:
+def check_highscore(userdb_path: Path, record: playRecord) -> bool:
     """True if this record updates high_score"""
-    global userdb_path
     con = sqlite3.connect(userdb_path)
     cur = con.cursor()
     cur.execute(
@@ -254,8 +256,7 @@ def splitR30(r30: list[playRecord]):
 
 
 @logger.catch
-def addRecord_recent(record: playRecord) -> bool:
-    global userdb_path
+def addRecord_recent(arcsong_path: Path, userdb_path: Path, record: playRecord) -> bool:
     con = sqlite3.connect(userdb_path)
     cur = con.cursor()
     cur.execute(
@@ -267,13 +268,13 @@ def addRecord_recent(record: playRecord) -> bool:
     cur.close()
     con.commit()
     cur = con.cursor()
-    r30 = getData("recent", record.user_id, 30)
+    r30 = getData(arcsong_path, userdb_path, "recent", record.user_id, 30)
 
     if len(r30) == 30:
         target = []
 
         # EX / update-high-score protection, this update won't decrease r10.
-        if (record.score >= 9800000) or (check_highscore(record)):
+        if (record.score >= 9800000) or (check_highscore(userdb_path, record)):
             _, r10_candidate = splitR30(r30)
             if (record in r30) and (len(chartDict) <= 10):
                 chart_dict = {}
@@ -335,8 +336,7 @@ def addRecord_recent(record: playRecord) -> bool:
 
 
 @logger.catch
-def addRecord_record(record: playRecord) -> bool:
-    global userdb_path
+def addRecord_record(userdb_path, record: playRecord) -> bool:
     con = sqlite3.connect(userdb_path)
     cur = con.cursor()
     cur.execute(
@@ -361,11 +361,11 @@ def addRecord_record(record: playRecord) -> bool:
 
 
 @logger.catch
-def addRecord(record: playRecord) -> bool:
+def addRecord(arcsong_path: Path, userdb_path: Path, record: playRecord) -> bool:
     """True if this record updates b30."""
-    addRecord_recent(record)
-    addRecord_record(record)
-    update_b30 = addRecord_best(record)
+    addRecord_recent(arcsong_path, userdb_path, record)
+    addRecord_record(userdb_path, record)
+    update_b30 = addRecord_best(userdb_path, record)
     return update_b30
 
 
@@ -422,12 +422,14 @@ if log_level == "DEBUG":
             pr = playRecord(
                 user, i[0], i[1], i[2], i[3], i[4], time=int(current_time())
             )
-            addRecord(pr)
+            addRecord(arcsong_path, userdb_path, pr)
             sleep(1)
     con.commit()
     cur = con.cursor()
-    b30 = getData("best", user, 50, order=("[time]", "ASC"))
-    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+    b30 = getData(arcsong_path, userdb_path, "best", user, 50, order=("[time]", "ASC"))
+    r30 = getData(
+        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
+    )
     _, r10c = splitR30(r30)
     # b30 000-, 010-
     # r30 101
@@ -442,10 +444,14 @@ if log_level == "DEBUG":
     # b30 100-, replace the lowest
     logger.debug(f"[b30 2] {_pretty_print(b30[-2:])}")
     pr = playRecord(user, "testify", 3, 2219, 2219, 0, time=int(current_time()))
-    addRecord(pr)
+    addRecord(arcsong_path, userdb_path, pr)
     sleep(1)
-    b30 = getData("best", user, 50, order=("[play_ptt]", "DESC"))
-    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+    b30 = getData(
+        arcsong_path, userdb_path, "best", user, 50, order=("[play_ptt]", "DESC")
+    )
+    r30 = getData(
+        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
+    )
 
     logger.debug(
         f"[b30 3] {_pretty_print(b30[-2:])}, expected: the last one of b30-2 is replaced"
@@ -454,28 +460,40 @@ if log_level == "DEBUG":
     # b30 1011
     logger.debug(f"[b30 4] {_pretty_print(b30[0:1])}")
     pr = playRecord(user, "testify", 3, 2220, 2220, 0, time=int(current_time()))
-    addRecord(pr)
+    addRecord(arcsong_path, userdb_path, pr)
     sleep(1)
-    b30 = getData("best", user, 50, order=("[play_ptt]", "DESC"))
-    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+    b30 = getData(
+        arcsong_path, userdb_path, "best", user, 50, order=("[play_ptt]", "DESC")
+    )
+    r30 = getData(
+        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
+    )
     logger.debug(f"[b30 5] {_pretty_print(b30[0:1])}, expected: b30-4 updated")
 
     # b30 1010
     pr = playRecord(user, "testify", 3, 2218, 2218, 0, time=int(current_time()))
-    addRecord(pr)
+    addRecord(arcsong_path, userdb_path, pr)
     sleep(1)
-    b30 = getData("best", user, 50, order=("[play_ptt]", "DESC"))
+    b30 = getData(
+        arcsong_path, userdb_path, "best", user, 50, order=("[play_ptt]", "DESC")
+    )
     logger.debug(f"[b30 6] {_pretty_print(b30[0:1])}, expected: b30-5 not updated")
 
     # b30 0010
     # r30 011
-    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+    r30 = getData(
+        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
+    )
     logger.debug(f"[r30 3] {_pretty_print(r30[0:1])}")
     pr = playRecord(user, "lapis", 2, 0, 0, 0, time=int(current_time()))
-    addRecord(pr)
+    addRecord(arcsong_path, userdb_path, pr)
     sleep(1)
-    b30 = getData("best", user, 50, order=("[play_ptt]", "DESC"))
-    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+    b30 = getData(
+        arcsong_path, userdb_path, "best", user, 50, order=("[play_ptt]", "DESC")
+    )
+    r30 = getData(
+        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
+    )
     logger.debug(f"[b30 7] {_pretty_print(b30[-5:])}, expected: lapis not updated")
     logger.debug(
         f"[r30 4] {_pretty_print(r30[-3:])}, expected: r30-3's last record updated to lapis"
@@ -484,9 +502,11 @@ if log_level == "DEBUG":
     # r30 110
     for _ in range(30):
         pr = playRecord(user, "testify", 3, 2220, 2220, 0, time=int(current_time()))
-        addRecord(pr)
+        addRecord(arcsong_path, userdb_path, pr)
         sleep(1)
-    r30 = getData("recent", user, 50, order=("[time]", "ASC"))
+    r30 = getData(
+        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
+    )
     r10, r10c = splitR30(r30)
     logger.debug(
         f"[r30 5] {_pretty_print(r10c)}, expected: testify with idendical play_ptt"
@@ -495,9 +515,11 @@ if log_level == "DEBUG":
     # r30 010
     logger.debug(f"[r30 6] {_pretty_print(r10)}")
     pr = playRecord(user, "fractureray", 2, 279, 278, 0, time=int(current_time()))
-    addRecord(pr)
+    addRecord(arcsong_path, userdb_path, pr)
     sleep(1)
-    r30 = getData("recent", user, 30, order=("[time]", "ASC"))
+    r30 = getData(
+        arcsong_path, userdb_path, "recent", user, 30, order=("[time]", "ASC")
+    )
     r10, r10c = splitR30(r30)
     logger.debug(
         f"[r30 7] {_pretty_print(r10)}, expected: fractureray replaces itself on r10"
