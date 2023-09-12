@@ -1,12 +1,11 @@
-from dataclasses import dataclass, field
+from contextlib import closing
+from dataclasses import dataclass, field, InitVar
 from loguru import logger
 import sqlite3
 from pathlib import Path
 from time import sleep
 from time import time as current_time
 from ..utils import get_config_info, get_project_root
-
-# from __init__ import db_path, log_level
 
 
 project_root = get_project_root()
@@ -17,6 +16,35 @@ if isinstance(config_arcaea, dict):
     log_level = config_arcaea["loglevel"]
 else:
     logger.error("Section [Arcaea] not found in config")
+
+
+class ArcaeaDbManager:
+    def __init__(self, arcsong_path: Path, userdb_path: Path):
+        self.arcsong_path = arcsong_path
+        self.userdb_path = userdb_path
+
+        if not arcsong_path.exists():
+            logger.error("arcsong db does not exist.")
+
+        if not userdb_path.exists():
+            with closing(sqlite3.connect(userdb_path)) as con:
+                with con:
+                    with open(get_project_root() / "arcaea" / "userdb_setup.sql") as f:
+                        setup_script = f.read()
+                        con.executescript(setup_script)
+
+    def playrecord_init_select(self, song_id: str, rating_class: int):
+        with closing(sqlite3.connect(self.arcsong_path)) as con:
+            with con:
+                cur = con.cursor()
+                cur.execute(
+                    "SELECT [rating], [note], [name_jp], [name_en] FROM charts WHERE [song_id] = ? AND [rating_class] = ?",
+                    (
+                        song_id,
+                        rating_class,
+                    ),
+                )
+                return cur.fetchone()
 
 
 @dataclass
@@ -36,21 +64,17 @@ class playRecord(object):
     score: int = field(init=False)
     play_ptt: float = field(init=False)
 
+    arcaea_db_manager: InitVar[ArcaeaDbManager]
+
     @logger.catch
-    def __post_init__(self):
-        con = sqlite3.connect(arcsong_path)
-        cur = con.cursor()
-        cur.execute(
-            "SELECT [rating], [note], [name_jp], [name_en] FROM charts WHERE [song_id] = ? AND [rating_class] = ?",
-            (
-                self.song_id,
-                self.rating_class,
-            ),
-        )
-        self.rating, self.note, name_jp, name_en = cur.fetchone()
-        con.commit()
+    def __post_init__(self, arcaea_db_manager: ArcaeaDbManager):
+        (
+            self.rating,
+            self.note,
+            name_jp,
+            name_en,
+        ) = arcaea_db_manager.playrecord_init_select(self.song_id, self.rating_class)
         self.name = name_en if name_jp == "" else name_jp
-        con.close()
 
         self.lost = self.note - self.pure - self.far
         self.score = self.calc_score()
@@ -89,6 +113,9 @@ if log_level == "DEBUG":
     )
     assert record.score == 9997367
     logger.debug(f"[playRecord time] {record.time}, expected: 1xxxxxxxxx")
+
+
+## code below is on waitlist
 
 
 @logger.catch
