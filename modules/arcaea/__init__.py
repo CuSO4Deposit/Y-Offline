@@ -1,6 +1,5 @@
-print(__name__)
 from loguru import logger
-from utils import get_config_info, get_project_root
+from modules.utils import get_config_info, get_project_root
 
 project_root = get_project_root()
 log_path = project_root / "log"

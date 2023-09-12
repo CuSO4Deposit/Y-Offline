@@ -5,7 +5,7 @@ import sqlite3
 from pathlib import Path
 from time import sleep
 from time import time as current_time
-from ..utils import get_config_info, get_project_root
+from modules.utils import get_config_info, get_project_root
 
 
 project_root = get_project_root()
@@ -29,7 +29,7 @@ class ArcaeaDbManager:
         if not userdb_path.exists():
             with closing(sqlite3.connect(userdb_path)) as con:
                 with con:
-                    with open(get_project_root() / "arcaea" / "userdb_setup.sql") as f:
+                    with open(get_project_root() / "modules" / "arcaea" / "userdb_setup.sql") as f:
                         setup_script = f.read()
                         con.executescript(setup_script)
 
