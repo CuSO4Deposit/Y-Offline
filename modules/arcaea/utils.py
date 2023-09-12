@@ -9,13 +9,15 @@ from modules.utils import get_config_info, get_project_root
 
 
 project_root = get_project_root()
+config = get_config_info("YOffline")
 config_arcaea = get_config_info("Arcaea")
-if isinstance(config_arcaea, dict):
-    arcsong_path = project_root / config_arcaea["dbpath"]
-    userdb_path = project_root / config_arcaea["userdbpath"]
-    log_level = config_arcaea["loglevel"]
-else:
+if not isinstance(config_arcaea, dict):
     logger.error("Section [Arcaea] not found in config")
+if isinstance(config, dict):
+    logger.error("Section [YOffline] not found in config")
+arcsong_path = project_root / config_arcaea["dbpath"]
+userdb_path = project_root / config["dbpath"]
+log_level = config_arcaea["loglevel"]
 
 
 class ArcaeaDbManager:
@@ -91,29 +93,6 @@ class playRecord(object):
             return self.rating / 10 + 1 + (self.score - 9800000) / 200000
         else:
             return max(0, self.rating / 10 + (self.score - 9500000) / 300000)
-
-
-if log_level == "DEBUG":
-    user_id = "test"
-    song_id = "fractureray"
-    rating_class = 2
-    pure = 1279
-    max_pure = 1277
-    far = 0
-    time = 1
-
-    record = playRecord(user_id, song_id, rating_class, pure, max_pure, far, time=time)
-    assert record.score == 10001277
-    assert record.play_ptt == 13.3
-
-    pure = 1278
-    far = 1
-    record = playRecord(
-        user_id, song_id, rating_class, pure, max_pure, far, time=int(current_time())
-    )
-    assert record.score == 9997367
-    logger.debug(f"[playRecord time] {record.time}, expected: 1xxxxxxxxx")
-
 
 ## code below is on waitlist
 
