@@ -1,7 +1,3 @@
-# import sys    
-# print("In module products sys.path[0], __package__ ==", sys.path[0], __package__)
-# print("In module products __package__, __name__ ==", __package__, __name__)
-
 from modules.arcaea import utils as arcaea
 from loguru import logger
 import pytest
