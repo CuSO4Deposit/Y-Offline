@@ -1,14 +1,20 @@
 from modules.arcaea import utils as arcaea
 from loguru import logger
 import pytest
-from modules.utils import get_project_root
+from modules.utils import get_config_info, get_project_root
 
 
 @pytest.fixture
 def arcaea_db_manager():
-    root = get_project_root()
-    arcsong_path = root / "database" / "ArcaeaSongDatabase" / "arcsong.db"
-    userdb_path = root / "database" / "yoffline.db"
+    project_root = get_project_root()
+    config = get_config_info("YOffline")
+    config_arcaea = get_config_info("Arcaea")
+    if not isinstance(config_arcaea, dict):
+        logger.error("Section [Arcaea] not found in config")
+    if not isinstance(config, dict):
+        logger.error("Section [YOffline] not found in config")
+    arcsong_path = project_root / config_arcaea["dbpath"]
+    userdb_path = project_root / config["dbpath"]
     return arcaea.ArcaeaDbManager(arcsong_path=arcsong_path, userdb_path=userdb_path)
 
 
