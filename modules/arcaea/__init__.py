@@ -10,8 +10,6 @@ log_file.touch(exist_ok=True)
 config_arcaea = get_config_info("Arcaea")
 if isinstance(config_arcaea, dict):
     log_level = config_arcaea["loglevel"]
-    arcsong_path = project_root / config_arcaea["dbpath"]
-    userdb_path = project_root / config_arcaea["userdbpath"]
 else:
     logger.error("Section [Arcaea] not found in config")
 logger.add(log_file, level=log_level, rotation="20 MB")
