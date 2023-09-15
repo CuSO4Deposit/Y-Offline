@@ -1,5 +1,5 @@
 from contextlib import closing
-from dataclasses import dataclass, field, InitVar
+from dataclasses import dataclass, field
 from loguru import logger
 import sqlite3
 from pathlib import Path
@@ -90,7 +90,6 @@ class ArcaeaDbManager:
                         setup_script = f.read()
                         con.executescript(setup_script)
 
-
     def _select_joined(
         self,
         join_table: str,
@@ -118,24 +117,9 @@ class ArcaeaDbManager:
                     query += f"LIMIT {limit}"
 
                 cur.execute(query, (user,))
-                res = cur.fetchall() 
+                res = cur.fetchall()
                 return res
-        # below will be used in _select
-        res = [
-            playRecord(
-                user_id=i["user"],
-                song_id=i["song_id"],
-                rating_class=i["rating_class"],
-                pure=i["pure"],
-                max_pure=i["max_pure"],
-                far=i["far"],
-                time=i["time"],
-            )
-            for i in res
-        ]
-        return res
 
-    
     def _insert(self, table: str, record: playRecord):
         with closing(sqlite3.connect(self.userdb_path)) as con:
             with con:
@@ -155,6 +139,57 @@ class ArcaeaDbManager:
                     ),
                 )
 
+    def _select(
+        self,
+        table: str,
+        user: str | None = None,
+        limit: int | None = None,
+        order=("[play_ptt]", "DESC"),
+        condition: dict = {},
+    ) -> list[playRecord]:
+        """Select from userdb. Condition only supports '=' by now."""
+        with closing(sqlite3.connect(self.userdb_path)) as con:
+            with con:
+                con.row_factory = dict_factory
+                cur = con.cursor()
+                query = f"SELECT * FROM {table} "
+                values = []
+                if user is None and condition == {}:
+                    pass
+                else:
+                    if user != None:
+                        condition["user"] = user
+                    query += "WHERE "
+                    for i, (k, v) in enumerate(condition.items()):
+                        query += ("" if i == 0 else "AND ") + f"{k} = ? "
+                        values.append(v)
+                if order != None:
+                    query += f"ORDER BY {order[0]} {order[1]} "
+                if limit != None:
+                    query += f"LIMIT {limit}"
+                cur.execute(query, values)
+                res = cur.fetchall()
+        res = [
+            playRecord(
+                user_id=i["user"],
+                song_id=i["song_id"],
+                rating_class=i["rating_class"],
+                pure=i["pure"],
+                max_pure=i["max_pure"],
+                far=i["far"],
+                time=i["time"],
+            )
+            for i in res
+        ]
+        return res
+
+    def b30(self, user: str) -> list[playRecord]:
+        return self._select("arcaea_best", user=user)
+
+    def _thischart_in_b30(self, record: playRecord) -> playRecord | None:
+        res = self._select("arcaea_best", user=user, condition={"[song_id]": record.song_id, "[rating_class]": record.rating_class})
+        return None if res == [] else res[0]
+
 ## code below is on waitlist
 
 
@@ -163,58 +198,6 @@ class ArcaeaManager:
         self.arcaea_db_manager = ArcaeaDbManager(
             arcsong_path=arcsong_path, userdb_path=userdb_path
         )
-
-    @logger.catch
-    def _getData(
-        self,
-        table: str,
-        user: str,
-        limit: int,
-        order=("[play_ptt]", "DESC"),
-    ) -> list[playRecord]:
-        arcsong_path = self.arcaea_db_manager.arcsong_path
-        userdb_path = self.arcaea_db_manager.userdb_path
-        arcsong_path_str = str(arcsong_path)
-        con = sqlite3.connect(userdb_path)
-        cur = con.cursor()
-        cur.execute(f"ATTACH '{arcsong_path_str}' AS arcsong")
-
-        query = f"""SELECT arcsong.charts.[name_jp], arcsong.charts.[name_en],
-            {table}.[rating_class], arcsong.charts.[note], {table}.[pure],
-            {table}.[max_pure], {table}.[far], arcsong.charts.[rating],
-            {table}.[play_ptt], {table}.[time], arcsong.charts.[song_id]
-            FROM {table} LEFT OUTER JOIN arcsong.charts
-            ON {table}.[song_id] = arcsong.charts.[song_id] AND {table}.[rating_class] = arcsong.charts.[rating_class]
-            WHERE {table}.[user] = ? ORDER BY {table}.{order[0]} {order[1]}
-            LIMIT {limit}
-            """
-
-        cur.execute(query, (user,))
-        res = cur.fetchall()
-        con.commit()
-        con.close()
-        # [name_jp]     [name_en]   [rating_class]  [note]      [pure]
-        # [max_pure]    [far]       [rating]        [play_ptt]  [time]
-        # [song_id]
-
-        if res == []:
-            logger.warning(f"No result for this query, user: {user}, table: {table}.")
-            return []
-
-        res = [
-            playRecord(
-                user_id=user,
-                song_id=i[10],
-                rating_class=i[2],
-                pure=i[4],
-                max_pure=i[5],
-                far=i[6],
-                time=i[9],
-                arcaea_db_manager=self.arcaea_db_manager,
-            )
-            for i in res
-        ]
-        return res
 
 
 def addRecord_best(userdb_path: Path, record: playRecord) -> bool:

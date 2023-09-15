@@ -1,3 +1,5 @@
+from contextlib import closing
+import sqlite3
 from sys import stderr
 from modules.arcaea import utils as arcaea
 from modules.utils import get_config_info, get_project_root
@@ -67,16 +69,25 @@ class Test_ArcDbmanager:
         )
         arcaea_db_manager._insert(table="arcaea_record", record=record)
 
+    def test_sqlite_empty_query(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
+        """test if sqlite supports empty query, and query in list instead of tuple"""
+        with closing(sqlite3.connect(arcaea_db_manager.userdb_path)) as con:
+            with con:
+                cur = con.cursor()
+                cur.execute("SELECT * FROM arcaea_record", [])
+                rec = cur.fetchone()
+        assert rec[0] == "fractureray"
 
     def test__select_joined(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
         res = arcaea_db_manager._select_joined("arcaea_record", user="test")
         assert isinstance(res[0], dict)
         assert res[0]["rating"] == 113
 
-
-
-
-
-
-
-
+    def test__select(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
+        res = arcaea_db_manager._select(
+            "arcaea_record", user="test", condition={"pure": 1279}
+        )
+        assert isinstance(res, list)
+        assert res[0].song_id == "fractureray"
+        res = arcaea_db_manager._select("arcaea_record")
+        assert isinstance(res, list)
