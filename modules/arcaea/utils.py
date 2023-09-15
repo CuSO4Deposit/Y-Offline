@@ -68,6 +68,11 @@ class playRecord(object):
             return max(0, self.rating / 10 + (self.score - 9500000) / 300000)
 
 
+def dict_factory(cursor, row):
+    fields = [column[0] for column in cursor.description]
+    return {key: value for key, value in zip(fields, row)}
+
+
 class ArcaeaDbManager:
     def __init__(self, arcsong_path: Path, userdb_path: Path):
         self.arcsong_path = arcsong_path
@@ -85,12 +90,70 @@ class ArcaeaDbManager:
                         setup_script = f.read()
                         con.executescript(setup_script)
 
-    def _select_joined(
-        self, join_table: str, user: str, limit: int, order=("[play_ptt]", "DESC")
-    ) -> playRecord:
-        # TODO
-        pass
 
+    def _select_joined(
+        self,
+        join_table: str,
+        user: str | None = None,
+        limit: int | None = None,
+        order=("[play_ptt]", "DESC"),
+    ) -> list[playRecord]:
+        join_table_choices = {"arcaea_best", "arcaea_recent", "arcaea_record"}
+        if join_table not in join_table_choices:
+            logger.error(f"{join_table} not allowed to attach.")
+        with closing(sqlite3.connect(self.userdb_path)) as con:
+            with con:
+                con.row_factory = dict_factory
+                cur = con.cursor()
+                cur.execute(f"ATTACH '{str(self.arcsong_path)}' AS arcsong")
+
+                query = f"""SELECT * FROM {join_table} LEFT OUTER JOIN arcsong.charts
+                    ON {join_table}.[song_id] = arcsong.charts.[song_id] AND {join_table}.[rating_class] = arcsong.charts.[rating_class]
+                    """
+                if user is not None:
+                    query += f"WHERE {join_table}.[user] = ?"
+                if order is not None:
+                    query += f"ORDER BY {join_table}.{order[0]} {order[1]}"
+                if limit is not None:
+                    query += f"LIMIT {limit}"
+
+                cur.execute(query, (user,))
+                res = cur.fetchall() 
+                return res
+        # below will be used in _select
+        res = [
+            playRecord(
+                user_id=i["user"],
+                song_id=i["song_id"],
+                rating_class=i["rating_class"],
+                pure=i["pure"],
+                max_pure=i["max_pure"],
+                far=i["far"],
+                time=i["time"],
+            )
+            for i in res
+        ]
+        return res
+
+    
+    def _insert(self, table: str, record: playRecord):
+        with closing(sqlite3.connect(self.userdb_path)) as con:
+            with con:
+                con.execute(
+                    f"""INSERT INTO {table} ([song_id], [rating_class],
+                    [max_pure], [pure], [far], [play_ptt], [time], [user])
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        record.song_id,
+                        record.rating_class,
+                        record.max_pure,
+                        record.pure,
+                        record.far,
+                        record.play_ptt,
+                        record.time,
+                        record.user_id,
+                    ),
+                )
 
 ## code below is on waitlist
 
