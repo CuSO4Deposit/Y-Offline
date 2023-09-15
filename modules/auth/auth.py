@@ -25,12 +25,14 @@ if not DB_PATH.exists():
     DB_PATH.touch()
     with sqlite3.connect(DB_PATH) as con:
         cur = con.cursor()
-        cur.execute("""\
+        cur.execute(
+            """\
 CREATE TABLE user(
 [username] VARCHAR(32) PRIMARY KEY,
 [password] CHAR(64),
 [bio] TEXT);
-        """)
+        """
+        )
         con.commit()
 
 
