@@ -107,3 +107,8 @@ class Test_ArcDbmanager:
         arcaea_db_manager._insert("arcaea_best", record)
         record.max_pure = 1276
         assert arcaea_db_manager._thischart_in_b30(record).max_pure == 1277 
+
+    def test__delete(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
+        assert arcaea_db_manager._select("arcaea_best", user="test2", condition={"time":1})
+        arcaea_db_manager._delete("arcaea_best", user="test2", time=1)
+        assert not arcaea_db_manager._select("arcaea_best", user="test2", condition={"time":1})

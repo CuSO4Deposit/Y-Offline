@@ -183,6 +183,18 @@ class ArcaeaDbManager:
         ]
         return res
 
+    def _delete(
+        self,
+        table: str,
+        user: str,
+        time: int,
+    ):
+        with closing(sqlite3.connect(self.userdb_path)) as con:
+            with con:
+                cur = con.cursor()
+                query = f"DELETE FROM {table} WHERE [user] = ? AND [time] = ?"
+                cur.execute(query, (user, time,))
+
     def b30(self, user: str) -> list[playRecord]:
         return self._select("arcaea_best", user=user)
 
