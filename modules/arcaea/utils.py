@@ -218,6 +218,9 @@ class ArcaeaManager(ArcaeaDbManager):
     def b30(self, user: str) -> list[playRecord]:
         return self._select("arcaea_best", user=user)
 
+    def r30(self, user: str) -> list[playRecord]:
+        return self._select("arcaea_recent", user=user)
+
     def _thischart_in_db(self, table: str, record: playRecord) -> playRecord | None:
         res = self._select(
             table=table,
@@ -271,23 +274,26 @@ class ArcaeaManager(ArcaeaDbManager):
         high_score = 0 if thischart_in_record is None else thischart_in_record.score
         return record.score >= high_score
 
+    def _splitR30(
+        self, r30: list[playRecord]
+    ) -> tuple[list[playRecord], list[playRecord]]:
+        chart_list = []
+        r10 = []
+        r10_candidate = []
+        for r in r30:
+            info = (r.song_id, r.rating_class)
+            if len(r10) < 10 and info not in chart_list:
+                chart_list.append(info)
+                r10.append(r)
+            else:
+                r10_candidate.append(r)
+        return r10, r10_candidate
+
+    def r10(self, user: str) -> list[playRecord]:
+        return self._splitR30(self.r30(user=user))[0]
+
 
 ## code below is on waitlist
-
-
-@logger.catch
-def splitR30(r30: list[playRecord]):
-    chart_list = []
-    r10 = []
-    r10_candidate = []
-    for r in r30:
-        info = (r.song_id, r.rating_class)
-        if len(r10) < 10 and info not in chart_list:
-            chart_list.append(info)
-            r10.append(r)
-        else:
-            r10_candidate.append(r)
-    return r10, r10_candidate
 
 
 @logger.catch
