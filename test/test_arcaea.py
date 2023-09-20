@@ -106,9 +106,44 @@ class Test_ArcDbmanager:
         assert arcaea_db_manager._thischart_in_b30(record) is None
         arcaea_db_manager._insert("arcaea_best", record)
         record.max_pure = 1276
-        assert arcaea_db_manager._thischart_in_b30(record).max_pure == 1277 
+        assert arcaea_db_manager._thischart_in_b30(record).max_pure == 1277
 
     def test__delete(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
-        assert arcaea_db_manager._select("arcaea_best", user="test2", condition={"time":1})
+        assert arcaea_db_manager._select(
+            "arcaea_best", user="test2", condition={"time": 1}
+        )
         arcaea_db_manager._delete("arcaea_best", user="test2", time=1)
-        assert not arcaea_db_manager._select("arcaea_best", user="test2", condition={"time":1})
+        assert not arcaea_db_manager._select(
+            "arcaea_best", user="test2", condition={"time": 1}
+        )
+
+    def test__transation(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
+        user_id = "test2"
+        song_id = "fractureray"
+        rating_class = 2
+        pure = 1278
+        max_pure = 1277
+        far = 1
+        time = 1
+        record = arcaea.playRecord(
+            user_id, song_id, rating_class, pure, max_pure, far, time
+        )
+
+        arcaea_db_manager._transaction(
+            [
+                arcaea_db_manager._insert_raw("arcaea_record", record),
+                arcaea_db_manager._delete_raw("arcaea_record", user=user_id, time=time),
+            ]
+        )
+        assert arcaea_db_manager._select("arcaea_record", user=user_id) == []
+
+        try:
+            arcaea_db_manager._transaction(
+                [
+                    arcaea_db_manager._insert_raw("arcaea_record", record),
+                    ("not_valid_table", ()),
+                ]
+            )
+        except:
+            pass
+        assert arcaea_db_manager._select("arcaea_record", user=user_id) == []

@@ -220,6 +220,13 @@ class ArcaeaDbManager:
         )
         return None if res == [] else res[0]
 
+    def _transaction(self, queries: list[tuple[str, tuple]]):
+        """receive a list of (query, params) and execute in a transaction"""
+        with closing(sqlite3.connect(self.userdb_path)) as con:
+            with con:
+                for query, params in queries:
+                    con.execute(query, params)
+
 
 ## code below is on waitlist
 
