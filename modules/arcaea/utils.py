@@ -206,6 +206,15 @@ class ArcaeaDbManager:
             with con:
                 con.execute(*self._delete_raw(table=table, user=user, time=time))
 
+    def _transaction(self, queries: list[tuple[str, tuple]]):
+        """receive a list of (query, params) and execute in a transaction"""
+        with closing(sqlite3.connect(self.userdb_path)) as con:
+            with con:
+                for query, params in queries:
+                    con.execute(query, params)
+
+
+class ArcaeaManager(ArcaeaDbManager):
     def b30(self, user: str) -> list[playRecord]:
         return self._select("arcaea_best", user=user)
 
@@ -220,15 +229,6 @@ class ArcaeaDbManager:
         )
         return None if res == [] else res[0]
 
-    def _transaction(self, queries: list[tuple[str, tuple]]):
-        """receive a list of (query, params) and execute in a transaction"""
-        with closing(sqlite3.connect(self.userdb_path)) as con:
-            with con:
-                for query, params in queries:
-                    con.execute(query, params)
-
-
-class ArcaeaManager(ArcaeaDbManager):
     def addRecord_best(self, record: playRecord) -> bool:
         b30 = self.b30(user=record.user_id)
         thischart_in_b30 = self._thischart_in_b30(record=record)
