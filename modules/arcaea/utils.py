@@ -228,90 +228,33 @@ class ArcaeaDbManager:
                     con.execute(query, params)
 
 
+class ArcaeaManager(ArcaeaDbManager):
+    def addRecord_best(self, record: playRecord) -> bool:
+        b30 = self.b30(user=record.user_id)
+        thischart_in_b30 = self._thischart_in_b30(record=record)
+        
+        transaction = []
+        # record has play_ptt lower than the lowest one in b30
+        if len(b30) == 30 and record.play_ptt <= b30[-1].play_ptt:
+            pass
+        # this chart is already in b30 and has higher play_ptt
+        elif thischart_in_b30 is not None and thischart_in_b30.play_ptt > record.play_ptt:
+            pass
+        else:
+            # this chart isn't in b30 and b30 is full, record replace the lowest one in b30
+            if len(b30) == 30 and thischart_in_b30 is None:
+                transaction.append(self._delete_raw("arcaea_best", record.user_id, b30[-1].time))
+            # this chart is in b30 and record has higher play_ptt, replace itself
+            elif thischart_in_b30 is not None:
+                transaction.append(self._delete_raw("arcaea_best", record.user_id, thischart_in_b30.time))
+            # else, this chart isn't in b30 and b30 is not full, simply insert
+
+            transaction.append(self._insert_raw("arcaea_best", record=record))
+            self._transaction(transaction)
+            return True
+        return False
+    
 ## code below is on waitlist
-
-
-class ArcaeaManager:
-    def __init__(self, arcsong_path: Path, userdb_path: Path):
-        self.arcaea_db_manager = ArcaeaDbManager(
-            arcsong_path=arcsong_path, userdb_path=userdb_path
-        )
-
-
-def addRecord_best(userdb_path: Path, record: playRecord) -> bool:
-    con = sqlite3.connect(userdb_path)
-    cur = con.cursor()
-    cur.execute(
-        """SELECT [play_ptt], [time] FROM best WHERE [user] = ?
-        ORDER BY [play_ptt] ASC""",
-        (record.user_id,),
-    )
-    b30 = cur.fetchall()
-    con.commit()
-    cur.close()
-    cur = con.cursor()
-    cur.execute(
-        """SELECT [play_ptt], [time], [user] FROM best 
-        WHERE [song_id] = ? AND [rating_class] = ? AND [user] = ?""",
-        (
-            record.song_id,
-            record.rating_class,
-            record.user_id,
-        ),
-    )
-    thisChart = cur.fetchone()
-    cur.close()
-    con.commit()
-    cur = con.cursor()
-
-    # record has play_ptt lower than the lowest one in b30
-    if len(b30) == 30 and record.play_ptt <= b30[0][0]:
-        pass
-    # this chart is already in b30 and has higher play_ptt
-    elif thisChart is not None and thisChart[0] > record.play_ptt:
-        pass
-    else:
-        # this chart isn't in b30 and b30 is full, record replace the lowest one in b30
-        if len(b30) == 30 and thisChart is None:
-            cur.execute(
-                "DELETE FROM best WHERE [user] = ? AND [time] = ?",
-                (
-                    record.user_id,
-                    b30[0][1],
-                ),
-            )
-        # this chart is in b30 and record has higher play_ptt, replace itself
-        elif thisChart is not None:
-            cur.execute(
-                "DELETE FROM best WHERE [user] = ? AND [time] = ?",
-                (
-                    record.user_id,
-                    thisChart[1],
-                ),
-            )
-        # else, this chart isn't in b30 and b30 is not full, simply insert
-
-        cur.execute(
-            """INSERT INTO best ([song_id], [rating_class],
-            [max_pure], [pure], [far], [play_ptt], [time], [user])
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                record.song_id,
-                record.rating_class,
-                record.max_pure,
-                record.pure,
-                record.far,
-                record.play_ptt,
-                record.time,
-                record.user_id,
-            ),
-        )
-        con.commit()
-        con.close()
-        return True
-    con.close()
-    return False
-
 
 @logger.catch
 def check_highscore(userdb_path: Path, record: playRecord) -> bool:
