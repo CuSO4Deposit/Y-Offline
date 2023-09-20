@@ -232,29 +232,39 @@ class ArcaeaManager(ArcaeaDbManager):
     def addRecord_best(self, record: playRecord) -> bool:
         b30 = self.b30(user=record.user_id)
         thischart_in_b30 = self._thischart_in_b30(record=record)
-        
-        transaction = []
+
         # record has play_ptt lower than the lowest one in b30
         if len(b30) == 30 and record.play_ptt <= b30[-1].play_ptt:
             pass
         # this chart is already in b30 and has higher play_ptt
-        elif thischart_in_b30 is not None and thischart_in_b30.play_ptt > record.play_ptt:
+        elif (
+            thischart_in_b30 is not None and thischart_in_b30.play_ptt > record.play_ptt
+        ):
             pass
         else:
+            transaction = []
             # this chart isn't in b30 and b30 is full, record replace the lowest one in b30
             if len(b30) == 30 and thischart_in_b30 is None:
-                transaction.append(self._delete_raw("arcaea_best", record.user_id, b30[-1].time))
+                transaction.append(
+                    self._delete_raw("arcaea_best", record.user_id, b30[-1].time)
+                )
             # this chart is in b30 and record has higher play_ptt, replace itself
             elif thischart_in_b30 is not None:
-                transaction.append(self._delete_raw("arcaea_best", record.user_id, thischart_in_b30.time))
+                transaction.append(
+                    self._delete_raw(
+                        "arcaea_best", record.user_id, thischart_in_b30.time
+                    )
+                )
             # else, this chart isn't in b30 and b30 is not full, simply insert
 
             transaction.append(self._insert_raw("arcaea_best", record=record))
             self._transaction(transaction)
             return True
         return False
-    
+
+
 ## code below is on waitlist
+
 
 @logger.catch
 def check_highscore(userdb_path: Path, record: playRecord) -> bool:
