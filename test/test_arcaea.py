@@ -10,7 +10,7 @@ from time import time as current_time
 
 
 @pytest.fixture(scope="session")
-def arcaea_db_manager():
+def arcaea_manager():
     project_root = get_project_root()
     config = get_config_info("YOffline")
     config_arcaea = get_config_info("Arcaea")
@@ -20,7 +20,7 @@ def arcaea_db_manager():
         logger.error("Section [YOffline] not found in config")
     arcsong_path = project_root / config_arcaea["dbpath"]
     userdb_path = Path(__file__).parent / "user.db"
-    yield arcaea.ArcaeaDbManager(arcsong_path=arcsong_path, userdb_path=userdb_path)
+    yield arcaea.ArcaeaManager(arcsong_path=arcsong_path, userdb_path=userdb_path)
     userdb_path.unlink()
 
 
@@ -55,7 +55,7 @@ def test_PlayRecord():
 
 
 class Test_ArcDbmanager:
-    def test__insert(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
+    def test__insert(self, arcaea_manager: arcaea.ArcaeaManager):
         user_id = "test"
         song_id = "fractureray"
         rating_class = 2
@@ -67,32 +67,32 @@ class Test_ArcDbmanager:
         record = arcaea.playRecord(
             user_id, song_id, rating_class, pure, max_pure, far, time
         )
-        arcaea_db_manager._insert(table="arcaea_record", record=record)
+        arcaea_manager._insert(table="arcaea_record", record=record)
 
-    def test_sqlite_empty_query(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
+    def test_sqlite_empty_query(self, arcaea_manager: arcaea.ArcaeaManager):
         """test if sqlite supports empty query, and query in list instead of tuple"""
-        with closing(sqlite3.connect(arcaea_db_manager.userdb_path)) as con:
+        with closing(sqlite3.connect(arcaea_manager.userdb_path)) as con:
             with con:
                 cur = con.cursor()
                 cur.execute("SELECT * FROM arcaea_record", [])
                 rec = cur.fetchone()
         assert rec[0] == "fractureray"
 
-    def test__select_joined(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
-        res = arcaea_db_manager._select_joined("arcaea_record", user="test")
+    def test__select_joined(self, arcaea_manager: arcaea.ArcaeaManager):
+        res = arcaea_manager._select_joined("arcaea_record", user="test")
         assert isinstance(res[0], dict)
         assert res[0]["rating"] == 113
 
-    def test__select(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
-        res = arcaea_db_manager._select(
+    def test__select(self, arcaea_manager: arcaea.ArcaeaManager):
+        res = arcaea_manager._select(
             "arcaea_record", user="test", condition={"pure": 1279}
         )
         assert isinstance(res, list)
         assert res[0].song_id == "fractureray"
-        res = arcaea_db_manager._select("arcaea_record")
+        res = arcaea_manager._select("arcaea_record")
         assert isinstance(res, list)
 
-    def test__thischart_in_b30(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
+    def test__thischart_in_b30(self, arcaea_manager: arcaea.ArcaeaManager):
         user_id = "test2"
         song_id = "fractureray"
         rating_class = 2
@@ -103,21 +103,22 @@ class Test_ArcDbmanager:
         record = arcaea.playRecord(
             user_id, song_id, rating_class, pure, max_pure, far, time
         )
-        assert arcaea_db_manager._thischart_in_b30(record) is None
-        arcaea_db_manager._insert("arcaea_best", record)
+        assert arcaea_manager._thischart_in_b30(record) is None
+        arcaea_manager._insert("arcaea_best", record)
         record.max_pure = 1276
-        assert arcaea_db_manager._thischart_in_b30(record).max_pure == 1277
+        assert arcaea_manager._thischart_in_b30(record).max_pure == 1277
 
-    def test__delete(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
-        assert arcaea_db_manager._select(
+    def test__delete(self, arcaea_manager: arcaea.ArcaeaManager):
+        assert arcaea_manager._select(
             "arcaea_best", user="test2", condition={"time": 1}
         )
-        arcaea_db_manager._delete("arcaea_best", user="test2", time=1)
-        assert not arcaea_db_manager._select(
+        arcaea_manager._delete("arcaea_best", user="test2", time=1)
+        assert not arcaea_manager._select(
             "arcaea_best", user="test2", condition={"time": 1}
         )
+        assert arcaea_manager._select("arcaea_deleted_best", user="test2")
 
-    def test__transation(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
+    def test__transation(self, arcaea_manager: arcaea.ArcaeaManager):
         user_id = "test2"
         song_id = "fractureray"
         rating_class = 2
@@ -129,21 +130,25 @@ class Test_ArcDbmanager:
             user_id, song_id, rating_class, pure, max_pure, far, time
         )
 
-        arcaea_db_manager._transaction(
+        arcaea_manager._transaction(
             [
-                arcaea_db_manager._insert_raw("arcaea_record", record),
-                arcaea_db_manager._delete_raw("arcaea_record", user=user_id, time=time),
+                arcaea_manager._insert_raw("arcaea_record", record),
+                arcaea_manager._delete_raw("arcaea_record", user=user_id, time=time),
             ]
         )
-        assert arcaea_db_manager._select("arcaea_record", user=user_id) == []
+        assert arcaea_manager._select("arcaea_record", user=user_id) == []
 
         try:
-            arcaea_db_manager._transaction(
+            arcaea_manager._transaction(
                 [
-                    arcaea_db_manager._insert_raw("arcaea_record", record),
+                    arcaea_manager._insert_raw("arcaea_record", record),
                     ("not_valid_table", ()),
                 ]
             )
         except:
             pass
-        assert arcaea_db_manager._select("arcaea_record", user=user_id) == []
+        assert arcaea_manager._select("arcaea_record", user=user_id) == []
+
+
+class Test_ArcManager:
+    pass
