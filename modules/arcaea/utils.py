@@ -120,24 +120,30 @@ class ArcaeaDbManager:
                 res = cur.fetchall()
                 return res
 
+    def _insert_raw(self, table: str, record: playRecord) -> tuple[str, tuple]:
+        """return a tuple (query, params) that can be received by cursor.execute()"""
+        query = f"""INSERT INTO {table} ([song_id], [rating_class],
+                [max_pure], [pure], [far], [play_ptt], [time], [user])
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""
+        params = (
+            record.song_id,
+            record.rating_class,
+            record.max_pure,
+            record.pure,
+            record.far,
+            record.play_ptt,
+            record.time,
+            record.user_id,
+        )
+        return (
+            query,
+            params,
+        )
+
     def _insert(self, table: str, record: playRecord):
         with closing(sqlite3.connect(self.userdb_path)) as con:
             with con:
-                con.execute(
-                    f"""INSERT INTO {table} ([song_id], [rating_class],
-                    [max_pure], [pure], [far], [play_ptt], [time], [user])
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        record.song_id,
-                        record.rating_class,
-                        record.max_pure,
-                        record.pure,
-                        record.far,
-                        record.play_ptt,
-                        record.time,
-                        record.user_id,
-                    ),
-                )
+                con.execute(*self._insert_raw(table=table, record=record))
 
     def _select(
         self,
@@ -183,24 +189,37 @@ class ArcaeaDbManager:
         ]
         return res
 
-    def _delete(
-        self,
-        table: str,
-        user: str,
-        time: int,
-    ):
+    def _delete_raw(self, table: str, user: str, time: int) -> tuple[str, tuple]:
+        """return a tuple (query, params) that can be received by cursor.execute()"""
+        query = f"DELETE FROM {table} WHERE [user] = ? AND [time] = ?"
+        params = (
+            user,
+            time,
+        )
+        return (
+            query,
+            params,
+        )
+
+    def _delete(self, table: str, user: str, time: int):
         with closing(sqlite3.connect(self.userdb_path)) as con:
             with con:
-                cur = con.cursor()
-                query = f"DELETE FROM {table} WHERE [user] = ? AND [time] = ?"
-                cur.execute(query, (user, time,))
+                con.execute(*self._delete_raw(table=table, user=user, time=time))
 
     def b30(self, user: str) -> list[playRecord]:
         return self._select("arcaea_best", user=user)
 
     def _thischart_in_b30(self, record: playRecord) -> playRecord | None:
-        res = self._select("arcaea_best", user=record.user_id, condition={"[song_id]": record.song_id, "[rating_class]": record.rating_class})
+        res = self._select(
+            "arcaea_best",
+            user=record.user_id,
+            condition={
+                "[song_id]": record.song_id,
+                "[rating_class]": record.rating_class,
+            },
+        )
         return None if res == [] else res[0]
+
 
 ## code below is on waitlist
 
