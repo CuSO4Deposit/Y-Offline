@@ -187,7 +187,7 @@ class ArcaeaDbManager:
         return self._select("arcaea_best", user=user)
 
     def _thischart_in_b30(self, record: playRecord) -> playRecord | None:
-        res = self._select("arcaea_best", user=user, condition={"[song_id]": record.song_id, "[rating_class]": record.rating_class})
+        res = self._select("arcaea_best", user=record.user_id, condition={"[song_id]": record.song_id, "[rating_class]": record.rating_class})
         return None if res == [] else res[0]
 
 ## code below is on waitlist

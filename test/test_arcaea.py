@@ -91,3 +91,19 @@ class Test_ArcDbmanager:
         assert res[0].song_id == "fractureray"
         res = arcaea_db_manager._select("arcaea_record")
         assert isinstance(res, list)
+
+    def test__thischart_in_b30(self, arcaea_db_manager: arcaea.ArcaeaDbManager):
+        user_id = "test2"
+        song_id = "fractureray"
+        rating_class = 2
+        pure = 1279
+        max_pure = 1277
+        far = 0
+        time = 1
+        record = arcaea.playRecord(
+            user_id, song_id, rating_class, pure, max_pure, far, time
+        )
+        assert arcaea_db_manager._thischart_in_b30(record) is None
+        arcaea_db_manager._insert("arcaea_best", record)
+        record.max_pure = 1276
+        assert arcaea_db_manager._thischart_in_b30(record).max_pure == 1277 
