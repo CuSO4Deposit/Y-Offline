@@ -218,10 +218,11 @@ class ArcaeaManager(ArcaeaDbManager):
     def b30(self, user: str) -> list[playRecord]:
         return self._select("arcaea_best", user=user)
 
-    def _thischart_in_b30(self, record: playRecord) -> playRecord | None:
+    def _thischart_in_db(self, table: str, record: playRecord) -> playRecord | None:
         res = self._select(
-            "arcaea_best",
+            table=table,
             user=record.user_id,
+            limit=1,
             condition={
                 "[song_id]": record.song_id,
                 "[rating_class]": record.rating_class,
@@ -231,7 +232,7 @@ class ArcaeaManager(ArcaeaDbManager):
 
     def addRecord_best(self, record: playRecord) -> bool:
         b30 = self.b30(user=record.user_id)
-        thischart_in_b30 = self._thischart_in_b30(record=record)
+        thischart_in_b30 = self._thischart_in_db(table="arcaea_best", record=record)
 
         # record has play_ptt lower than the lowest one in b30
         if len(b30) == 30 and record.play_ptt <= b30[-1].play_ptt:
@@ -262,31 +263,16 @@ class ArcaeaManager(ArcaeaDbManager):
             return True
         return False
 
+    def _check_highscore(self, record: playRecord) -> bool:
+        """True if this record updates high_score"""
+        thischart_in_record = self._thischart_in_db(
+            table="arcaea_record", record=record
+        )
+        high_score = 0 if thischart_in_record is None else thischart_in_record.score
+        return record.score >= high_score
+
 
 ## code below is on waitlist
-
-
-@logger.catch
-def check_highscore(userdb_path: Path, record: playRecord) -> bool:
-    """True if this record updates high_score"""
-    con = sqlite3.connect(userdb_path)
-    cur = con.cursor()
-    cur.execute(
-        """SELECT [play_ptt] FROM record
-        WHERE [user] = ? and [song_id] = ? and [rating_class] = ?
-        ORDER BY [play_ptt] DESC LIMIT 1""",
-        (
-            record.user_id,
-            record.song_id,
-            record.rating_class,
-        ),
-    )
-    former = cur.fetchone()
-    con.commit()
-    con.close()
-    if former is None:
-        former = (0,)
-    return record.play_ptt >= former[0]
 
 
 @logger.catch

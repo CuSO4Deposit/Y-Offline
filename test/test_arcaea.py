@@ -92,7 +92,7 @@ class Test_ArcDbmanager:
         res = arcaea_manager._select("arcaea_record")
         assert isinstance(res, list)
 
-    def test__thischart_in_b30(self, arcaea_manager: arcaea.ArcaeaManager):
+    def test__thischart_in_db(self, arcaea_manager: arcaea.ArcaeaManager):
         user_id = "test2"
         song_id = "fractureray"
         rating_class = 2
@@ -103,10 +103,13 @@ class Test_ArcDbmanager:
         record = arcaea.playRecord(
             user_id, song_id, rating_class, pure, max_pure, far, time
         )
-        assert arcaea_manager._thischart_in_b30(record) is None
+        assert arcaea_manager._thischart_in_db("arcaea_best", record) is None
         arcaea_manager._insert("arcaea_best", record)
-        record.max_pure = 1276
-        assert arcaea_manager._thischart_in_b30(record).max_pure == 1277
+        max_pure = 1276
+        record = arcaea.playRecord(
+            user_id, song_id, rating_class, pure, max_pure, far, time
+        )
+        assert arcaea_manager._thischart_in_db("arcaea_best", record).max_pure == 1277
 
     def test__delete(self, arcaea_manager: arcaea.ArcaeaManager):
         assert arcaea_manager._select(
@@ -151,4 +154,24 @@ class Test_ArcDbmanager:
 
 
 class Test_ArcManager:
-    pass
+    def test__check_highscore(self, arcaea_manager: arcaea.ArcaeaManager):
+        user_id = "test"
+        song_id = "fractureray"
+        rating_class = 2
+        pure = 1279
+        max_pure = 1278
+        far = 0
+        time = 2
+
+        record = arcaea.playRecord(
+            user_id, song_id, rating_class, pure, max_pure, far, time
+        )
+        assert arcaea_manager._check_highscore(record=record)
+
+        pure = 1278
+        record = arcaea.playRecord(
+            user_id, song_id, rating_class, pure, max_pure, far, time
+        )
+        assert arcaea_manager._check_highscore(record=record) == False
+
+        arcaea_manager._delete("arcaea_record", user=user_id, time=1)
