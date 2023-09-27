@@ -153,6 +153,13 @@ class Test_ArcDbmanager:
         assert arcaea_manager._select("arcaea_record", user=user_id) == []
 
 
+def _pretty_print(record_list: list[arcaea.playRecord]) -> str:
+    string = ""
+    for i in record_list:
+        string += f"{i.name[:16]: <16}\t{round(i.play_ptt, 2)}\t{i.time}\n"
+    return string
+
+
 class Test_ArcManager:
     def test__check_highscore(self, arcaea_manager: arcaea.ArcaeaManager):
         user_id = "test"
@@ -175,3 +182,122 @@ class Test_ArcManager:
         assert arcaea_manager._check_highscore(record=record) == False
 
         arcaea_manager._delete("arcaea_record", user=user_id, time=1)
+
+    def test_addRecord(self, arcaea_manager: arcaea.ArcaeaManager):
+        user = "test3"
+        test_b33 = [
+            ["grievouslady", 2, 1370, 1189, 52],
+            ["lastcelebration", 2, 1434, 1293, 32],
+            ["valhallazero", 2, 1142, 1012, 26],
+            ["battlenoone", 2, 1037, 936, 5],
+            ["cyaegha", 2, 1317, 1121, 36],
+            ["fractureray", 2, 1203, 1052, 43],
+            ["alexandrite", 2, 1024, 884, 13, 3],
+            ["akinokagerou", 2, 1068, 951, 6],
+            ["singularity", 2, 1062, 902, 30],
+            ["memoryforest", 2, 968, 879, 9],
+            ["halcyon", 2, 1181, 1050, 28],
+            ["sheriruth", 2, 1127, 953, 20],
+            ["sulfur", 2, 1038, 951, 5],
+            ["worldfragments", 2, 1372, 12, 3],
+            ["dreadnought", 2, 1089, 942, 9],
+            ["amygdata", 2, 1187, 1105, 11, 1],
+            ["themessage", 2, 984, 911, 5],
+            ["corruption", 2, 1279, 1206, 8],
+            ["metallicpunisher", 2, 1206, 1084, 20],
+            ["trappola", 2, 1023, 920, 17],
+            ["tothemilkyway", 2, 1346, 1190, 28],
+            ["heavensdoor", 2, 1084, 977, 11],
+            ["gimmick", 2, 729, 669, 4],
+            ["fractureray", 1, 1336, 1269, 6],
+            ["dataerror", 2, 949, 880, 5],
+            ["blrink", 2, 1001, 868, 12],
+            ["supernova", 2, 1109, 979, 10],
+            ["yozakurafubuki", 2, 927, 815, 4],
+            ["lapis", 2, 916, 827, 4],
+            ["eveninginscarlet", 2, 915, 829, 6],
+            ["etherstrike", 2, 1133, 989, 26],
+            ["melodyoflove", 2, 920, 819, 10],
+            ["aiueoon", 2, 984, 889, 5],
+        ]
+        for idx, i in enumerate(test_b33):
+            pr = arcaea.playRecord(
+                user, i[0], i[1], i[2], i[3], i[4], time=idx,
+            )
+            arcaea_manager.addRecord(pr) 
+
+        # b30 000-, 010-
+        # r30 101
+        # after 33 records inserted, b30 only has 30 records.
+        b30 = arcaea_manager.b30("test3")
+        assert len(b30) == 30
+        b30_songid_list = (i.song_id for i in b30)
+        # b31, b32, b33 not in b30
+        assert "etherstrike" not in b30_songid_list
+        assert "melodyoflove" not in b30_songid_list
+        assert "aiueoon" not in b30_songid_list
+        r10, r10c = arcaea_manager._splitR30(arcaea_manager.r30(user=user))
+        r10_songid_list = {i.song_id for i in r10}
+        r10c_songid_list = {i.song_id for i in r10c}
+        print(r10c_songid_list)
+        # no protection, it flashes out "grievouslady"
+        assert "etherstrike" in r10_songid_list
+        assert "grievouslady" not in r10_songid_list
+        # EX protection, it tries to flash out "lastcelebration" but fails.
+        # Then it will flash out earliest in r10c
+        assert "melodyoflove" in r10c_songid_list
+        assert "aiueoon" in r10c_songid_list
+
+        # b30 100-, replace the lowest
+        pr = arcaea.playRecord(user, "testify", 3, 2219, 2219, 0, time=34) 
+        arcaea_manager.addRecord(pr)
+        b30 = arcaea_manager.b30(user=user)
+        b30_songid_list = {i.song_id for i in b30}
+        # the record with lowest ptt in b30 is replaed
+        assert "eveninginscarlet" not in b30_songid_list
+        assert "testify" in b30_songid_list
+    
+        # b30 1011
+        pr = arcaea.playRecord(user, "testify", 3, 2220, 2220, 0, time=35)
+        arcaea_manager.addRecord(pr)
+        b30 = arcaea_manager.b30(user=user)
+        # same chart, updates itself
+        assert b30[0].pure == 2220
+
+        # b30 1010
+        pr = arcaea.playRecord(user, "testify", 3, 2218, 2218, 0, time=36)
+        arcaea_manager.addRecord(pr)
+        b30 = arcaea_manager.b30(user=user)
+        # same chart, but did not update highscore, do not update b30
+        assert b30[0].pure != 2218
+
+        # b30 0010
+        # r30 011
+        r30 = arcaea_manager.r30(user=user)
+        former_r30_latest = r30[0]
+        pr = arcaea.playRecord(user, "lapis", 2, 0, 0, 0, time=37)
+        arcaea_manager.addRecord(pr)
+        b30 = arcaea_manager.b30(user=user)
+        r30 = arcaea_manager.r30(user=user)
+        # the latest one of r30 is updated
+        assert r30[0] != former_r30_latest
+        # this record won;t update b30
+        lapis_in_b30 = {i for i in b30 if i.song_id == "lapis"}.pop()
+        assert lapis_in_b30.pure != 0
+        
+        # r30 110
+        for i in range(30):
+            pr = arcaea.playRecord(user, "testify", 3, 2220, 2220, 0, time=38 + i)
+            arcaea_manager.addRecord(pr)
+        r30 = arcaea_manager.r30(user=user)
+        _, r10c = arcaea_manager._splitR30(r30)
+        score_in_r10c = {i.score for i in r10c}
+        # all records in r10c has same score.
+        assert len(score_in_r10c) == 1
+
+        # r30 010
+        fractureray_in_former_r30 = {i for i in r30 if i.song_id == "fractureray"}.pop()
+        pr = playRecord(user, "fractureray", 2, 279, 278, 0, time=68)
+        arcaea_manager.addRecord(pr)
+        fractureray_in_current_r30 = {i for i in r30 if i.song_id == "fractureray"}.pop()
+        assert fractureray_in_current_r30 != fractureray_in_former_r30

@@ -219,7 +219,7 @@ class ArcaeaManager(ArcaeaDbManager):
         return self._select("arcaea_best", user=user)
 
     def r30(self, user: str) -> list[playRecord]:
-        return self._select("arcaea_recent", user=user)
+        return self._select("arcaea_recent", user=user, order=("[time]", "DESC"))
 
     def _thischart_in_db(self, table: str, record: playRecord) -> playRecord | None:
         res = self._select(
@@ -292,6 +292,47 @@ class ArcaeaManager(ArcaeaDbManager):
     def r10(self, user: str) -> list[playRecord]:
         return self._splitR30(self.r30(user=user))[0]
 
+    def addRecord_recent(self, record: playRecord):
+        r30 = self.r30(user=record.user_id)
+        chart_dict = {}
+        for r in r30:
+            chart_id = (r.song_id, r.rating_class)
+            chart_dict[chart_id] = 1 if chart_id not in chart_dict else chart_dict[(chart_id)] + 1
+
+        transaction = []
+        if len(r30) == 30:
+            target = []
+            
+            # EX / update-high-score protection, this update won't decrease r10.
+            if (record.score >= 9800000) or (self._check_highscore(record)):
+                _, r10_candidate = self._splitR30(r30)
+                if (record in r30) and (len(chart_dict) <= 10):
+                    chart_dict_candidates = {}
+                    for r in r10_candidate:
+                        chart_id = (r.song_id, r.rating_class)
+                        chart_dict_candidates[chart_id] = 1 if chart_id not in chart_dict_candidates else chart_dict_candidates[(chart_id)] + 1
+                    for r in r10_candidate:
+                        if chart_dict_candidates[(r.song_id, r.rating_class)] > 1:
+                            target.append(r)
+                else:
+                    target = r10_candidate
+            else:
+                if ((record.song_id, record.rating_class) in chart_dict) and len(chart_dict) <= 10:
+                    target = [r for r in r30 if r.song_id == record.song_id and r.rating_class == record.rating_class]
+                else:
+                    target = r30
+            record_to_replace = min(target, key=lambda x: x.time)
+            transaction.append(self._delete_raw("arcaea_recent", user=record_to_replace.user_id, time=record_to_replace.time))
+        transaction.append(self._insert_raw("arcaea_recent", record))
+        self._transaction(transaction)
+
+    def addRecord_record(self, record: playRecord):
+        self._insert("arcaea_record", record)
+
+    def addRecord(self, record: playRecord) -> bool:
+        self.addRecord_recent(record)
+        self.addRecord_record(record)
+        return self.addRecord_best(record)
 
 ## code below is on waitlist
 
