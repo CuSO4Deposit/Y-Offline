@@ -67,6 +67,9 @@ class playRecord(object):
         else:
             return max(0, self.rating / 10 + (self.score - 9500000) / 300000)
 
+    def __hash__(self) -> int:
+        return f"{self.user_id}-{self.time}".__hash__()
+
 
 def dict_factory(cursor, row):
     fields = [column[0] for column in cursor.description]
@@ -280,7 +283,9 @@ class ArcaeaManager(ArcaeaDbManager):
         chart_list = []
         r10 = []
         r10_candidate = []
-        for r in r30:
+        r30_score_DESC = r30.copy()
+        r30_score_DESC.sort(key=lambda x: x.play_ptt, reverse=True)
+        for r in r30_score_DESC:
             info = (r.song_id, r.rating_class)
             if len(r10) < 10 and info not in chart_list:
                 chart_list.append(info)
@@ -297,12 +302,14 @@ class ArcaeaManager(ArcaeaDbManager):
         chart_dict = {}
         for r in r30:
             chart_id = (r.song_id, r.rating_class)
-            chart_dict[chart_id] = 1 if chart_id not in chart_dict else chart_dict[(chart_id)] + 1
+            chart_dict[chart_id] = (
+                1 if chart_id not in chart_dict else chart_dict[(chart_id)] + 1
+            )
 
         transaction = []
         if len(r30) == 30:
             target = []
-            
+
             # EX / update-high-score protection, this update won't decrease r10.
             if (record.score >= 9800000) or (self._check_highscore(record)):
                 _, r10_candidate = self._splitR30(r30)
@@ -310,19 +317,36 @@ class ArcaeaManager(ArcaeaDbManager):
                     chart_dict_candidates = {}
                     for r in r10_candidate:
                         chart_id = (r.song_id, r.rating_class)
-                        chart_dict_candidates[chart_id] = 1 if chart_id not in chart_dict_candidates else chart_dict_candidates[(chart_id)] + 1
+                        chart_dict_candidates[chart_id] = (
+                            1
+                            if chart_id not in chart_dict_candidates
+                            else chart_dict_candidates[(chart_id)] + 1
+                        )
                     for r in r10_candidate:
                         if chart_dict_candidates[(r.song_id, r.rating_class)] > 1:
                             target.append(r)
                 else:
                     target = r10_candidate
             else:
-                if ((record.song_id, record.rating_class) in chart_dict) and len(chart_dict) <= 10:
-                    target = [r for r in r30 if r.song_id == record.song_id and r.rating_class == record.rating_class]
+                if ((record.song_id, record.rating_class) in chart_dict) and len(
+                    chart_dict
+                ) <= 10:
+                    target = [
+                        r
+                        for r in r30
+                        if r.song_id == record.song_id
+                        and r.rating_class == record.rating_class
+                    ]
                 else:
                     target = r30
             record_to_replace = min(target, key=lambda x: x.time)
-            transaction.append(self._delete_raw("arcaea_recent", user=record_to_replace.user_id, time=record_to_replace.time))
+            transaction.append(
+                self._delete_raw(
+                    "arcaea_recent",
+                    user=record_to_replace.user_id,
+                    time=record_to_replace.time,
+                )
+            )
         transaction.append(self._insert_raw("arcaea_recent", record))
         self._transaction(transaction)
 
@@ -333,6 +357,7 @@ class ArcaeaManager(ArcaeaDbManager):
         self.addRecord_recent(record)
         self.addRecord_record(record)
         return self.addRecord_best(record)
+
 
 ## code below is on waitlist
 
@@ -449,162 +474,3 @@ def addRecord(arcsong_path: Path, userdb_path: Path, record: playRecord) -> bool
     addRecord_record(userdb_path, record)
     update_b30 = addRecord_best(userdb_path, record)
     return update_b30
-
-
-def _pretty_print(record_list: list[playRecord]) -> str:
-    string = ""
-    for i in record_list:
-        string += f"{i.name[:16]: <16}\t{round(i.play_ptt, 2)}\t{i.time}\n"
-    return string
-
-
-if log_level == "DEBUG":
-    con = sqlite3.connect(userdb_path)
-    cur = con.cursor()
-    cur.execute("""SELECT * FROM record WHERE [user] = 'test'""")
-    user = "test"
-    if cur.fetchone() is None:
-        test_b33 = [
-            ["grievouslady", 2, 1370, 1189, 52],
-            ["lastcelebration", 2, 1434, 1293, 32],
-            ["valhallazero", 2, 1142, 1012, 26],
-            ["battlenoone", 2, 1037, 936, 5],
-            ["cyaegha", 2, 1317, 1121, 36],
-            ["fractureray", 2, 1203, 1052, 43],
-            ["alexandrite", 2, 1024, 884, 13, 3],
-            ["akinokagerou", 2, 1068, 951, 6],
-            ["singularity", 2, 1062, 902, 30],
-            ["memoryforest", 2, 968, 879, 9],
-            ["halcyon", 2, 1181, 1050, 28],
-            ["sheriruth", 2, 1127, 953, 20],
-            ["sulfur", 2, 1038, 951, 5],
-            ["worldfragments", 2, 1372, 12, 3],
-            ["dreadnought", 2, 1089, 942, 9],
-            ["amygdata", 2, 1187, 1105, 11, 1],
-            ["themessage", 2, 984, 911, 5],
-            ["corruption", 2, 1279, 1206, 8],
-            ["metallicpunisher", 2, 1206, 1084, 20],
-            ["trappola", 2, 1023, 920, 17],
-            ["tothemilkyway", 2, 1346, 1190, 28],
-            ["heavensdoor", 2, 1084, 977, 11],
-            ["gimmick", 2, 729, 669, 4],
-            ["fractureray", 1, 1336, 1269, 6],
-            ["dataerror", 2, 949, 880, 5],
-            ["blrink", 2, 1001, 868, 12],
-            ["supernova", 2, 1109, 979, 10],
-            ["yozakurafubuki", 2, 927, 815, 4],
-            ["lapis", 2, 916, 827, 4],
-            ["eveninginscarlet", 2, 915, 829, 6],
-            ["etherstrike", 2, 1133, 989, 26],
-            ["melodyoflove", 2, 920, 819, 10],
-            ["aiueoon", 2, 984, 889, 5],
-        ]
-        cur.close()
-        for i in test_b33:
-            pr = playRecord(
-                user, i[0], i[1], i[2], i[3], i[4], time=int(current_time())
-            )
-            addRecord(arcsong_path, userdb_path, pr)
-            sleep(1)
-    con.commit()
-    cur = con.cursor()
-    b30 = getData(arcsong_path, userdb_path, "best", user, 50, order=("[time]", "ASC"))
-    r30 = getData(
-        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
-    )
-    _, r10c = splitR30(r30)
-    # b30 000-, 010-
-    # r30 101
-    logger.debug(f"[b30 1]\n{_pretty_print(b30[9:13])}\n")
-    logger.debug(
-        f"[r30 1], expected: es, melody, aiueoon replaces 10, 11, 12 in b30 (0-indexed)\n{_pretty_print(r30[9:13])}\n"
-    )
-    logger.debug(
-        f"[r30 2], expected: es, melody, aiueoon in r10c\n{_pretty_print(r10c[-3:])}\n"
-    )
-
-    # b30 100-, replace the lowest
-    logger.debug(f"[b30 2] {_pretty_print(b30[-2:])}")
-    pr = playRecord(user, "testify", 3, 2219, 2219, 0, time=int(current_time()))
-    addRecord(arcsong_path, userdb_path, pr)
-    sleep(1)
-    b30 = getData(
-        arcsong_path, userdb_path, "best", user, 50, order=("[play_ptt]", "DESC")
-    )
-    r30 = getData(
-        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
-    )
-
-    logger.debug(
-        f"[b30 3] {_pretty_print(b30[-2:])}, expected: the last one of b30-2 is replaced"
-    )
-
-    # b30 1011
-    logger.debug(f"[b30 4] {_pretty_print(b30[0:1])}")
-    pr = playRecord(user, "testify", 3, 2220, 2220, 0, time=int(current_time()))
-    addRecord(arcsong_path, userdb_path, pr)
-    sleep(1)
-    b30 = getData(
-        arcsong_path, userdb_path, "best", user, 50, order=("[play_ptt]", "DESC")
-    )
-    r30 = getData(
-        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
-    )
-    logger.debug(f"[b30 5] {_pretty_print(b30[0:1])}, expected: b30-4 updated")
-
-    # b30 1010
-    pr = playRecord(user, "testify", 3, 2218, 2218, 0, time=int(current_time()))
-    addRecord(arcsong_path, userdb_path, pr)
-    sleep(1)
-    b30 = getData(
-        arcsong_path, userdb_path, "best", user, 50, order=("[play_ptt]", "DESC")
-    )
-    logger.debug(f"[b30 6] {_pretty_print(b30[0:1])}, expected: b30-5 not updated")
-
-    # b30 0010
-    # r30 011
-    r30 = getData(
-        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
-    )
-    logger.debug(f"[r30 3] {_pretty_print(r30[0:1])}")
-    pr = playRecord(user, "lapis", 2, 0, 0, 0, time=int(current_time()))
-    addRecord(arcsong_path, userdb_path, pr)
-    sleep(1)
-    b30 = getData(
-        arcsong_path, userdb_path, "best", user, 50, order=("[play_ptt]", "DESC")
-    )
-    r30 = getData(
-        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
-    )
-    logger.debug(f"[b30 7] {_pretty_print(b30[-5:])}, expected: lapis not updated")
-    logger.debug(
-        f"[r30 4] {_pretty_print(r30[-3:])}, expected: r30-3's last record updated to lapis"
-    )
-
-    # r30 110
-    for _ in range(30):
-        pr = playRecord(user, "testify", 3, 2220, 2220, 0, time=int(current_time()))
-        addRecord(arcsong_path, userdb_path, pr)
-        sleep(1)
-    r30 = getData(
-        arcsong_path, userdb_path, "recent", user, 50, order=("[time]", "ASC")
-    )
-    r10, r10c = splitR30(r30)
-    logger.debug(
-        f"[r30 5] {_pretty_print(r10c)}, expected: testify with idendical play_ptt"
-    )
-
-    # r30 010
-    logger.debug(f"[r30 6] {_pretty_print(r10)}")
-    pr = playRecord(user, "fractureray", 2, 279, 278, 0, time=int(current_time()))
-    addRecord(arcsong_path, userdb_path, pr)
-    sleep(1)
-    r30 = getData(
-        arcsong_path, userdb_path, "recent", user, 30, order=("[time]", "ASC")
-    )
-    r10, r10c = splitR30(r30)
-    logger.debug(
-        f"[r30 7] {_pretty_print(r10)}, expected: fractureray replaces itself on r10"
-    )
-
-    con.close()

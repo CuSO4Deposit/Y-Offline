@@ -1,6 +1,5 @@
 from contextlib import closing
 import sqlite3
-from sys import stderr
 from modules.arcaea import utils as arcaea
 from modules.utils import get_config_info, get_project_root
 from loguru import logger
@@ -222,9 +221,15 @@ class Test_ArcManager:
         ]
         for idx, i in enumerate(test_b33):
             pr = arcaea.playRecord(
-                user, i[0], i[1], i[2], i[3], i[4], time=idx,
+                user,
+                i[0],
+                i[1],
+                i[2],
+                i[3],
+                i[4],
+                time=idx,
             )
-            arcaea_manager.addRecord(pr) 
+            arcaea_manager.addRecord(pr)
 
         # b30 000-, 010-
         # r30 101
@@ -236,27 +241,28 @@ class Test_ArcManager:
         assert "etherstrike" not in b30_songid_list
         assert "melodyoflove" not in b30_songid_list
         assert "aiueoon" not in b30_songid_list
-        r10, r10c = arcaea_manager._splitR30(arcaea_manager.r30(user=user))
-        r10_songid_list = {i.song_id for i in r10}
+        r30 = arcaea_manager.r30(user=user)
+        _, r10c = arcaea_manager._splitR30(r30)
+        r30_songid_list = {i.song_id for i in r30}
         r10c_songid_list = {i.song_id for i in r10c}
-        print(r10c_songid_list)
-        # no protection, it flashes out "grievouslady"
-        assert "etherstrike" in r10_songid_list
-        assert "grievouslady" not in r10_songid_list
-        # EX protection, it tries to flash out "lastcelebration" but fails.
-        # Then it will flash out earliest in r10c
-        assert "melodyoflove" in r10c_songid_list
-        assert "aiueoon" in r10c_songid_list
+        # EX / highscore protection.
+        # Then it will flash out earliest in r10c, that is, halcyon sheriruth and sulfur.
+        assert "etherstrike" in r30_songid_list
+        assert "melodyoflove" in r30_songid_list
+        assert "aiueoon" in r30_songid_list
+        assert "halcyon" not in r10c_songid_list
+        assert "sheriruth" not in r10c_songid_list
+        assert "sulfur" not in r10c_songid_list
 
         # b30 100-, replace the lowest
-        pr = arcaea.playRecord(user, "testify", 3, 2219, 2219, 0, time=34) 
+        pr = arcaea.playRecord(user, "testify", 3, 2219, 2219, 0, time=34)
         arcaea_manager.addRecord(pr)
         b30 = arcaea_manager.b30(user=user)
         b30_songid_list = {i.song_id for i in b30}
-        # the record with lowest ptt in b30 is replaed
+        # the record with lowest ptt in b30 is replaced
         assert "eveninginscarlet" not in b30_songid_list
         assert "testify" in b30_songid_list
-    
+
         # b30 1011
         pr = arcaea.playRecord(user, "testify", 3, 2220, 2220, 0, time=35)
         arcaea_manager.addRecord(pr)
@@ -281,10 +287,10 @@ class Test_ArcManager:
         r30 = arcaea_manager.r30(user=user)
         # the latest one of r30 is updated
         assert r30[0] != former_r30_latest
-        # this record won;t update b30
+        # this record won't update b30
         lapis_in_b30 = {i for i in b30 if i.song_id == "lapis"}.pop()
         assert lapis_in_b30.pure != 0
-        
+
         # r30 110
         for i in range(30):
             pr = arcaea.playRecord(user, "testify", 3, 2220, 2220, 0, time=38 + i)
@@ -297,7 +303,10 @@ class Test_ArcManager:
 
         # r30 010
         fractureray_in_former_r30 = {i for i in r30 if i.song_id == "fractureray"}.pop()
-        pr = playRecord(user, "fractureray", 2, 279, 278, 0, time=68)
+        pr = arcaea.playRecord(user, "fractureray", 2, 279, 278, 0, time=68)
         arcaea_manager.addRecord(pr)
-        fractureray_in_current_r30 = {i for i in r30 if i.song_id == "fractureray"}.pop()
+        r30 = arcaea_manager.r30(user=user)
+        fractureray_in_current_r30 = {
+            i for i in r30 if i.song_id == "fractureray"
+        }.pop()
         assert fractureray_in_current_r30 != fractureray_in_former_r30
