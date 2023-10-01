@@ -11,15 +11,17 @@ from typing import Annotated
 from ..utils import get_config_info, get_project_root
 
 project_root = get_project_root()
-config_auth = get_config_info("Auth")
+config = get_config_info("YOffline")
 
 if isinstance(config_auth, dict):
-    DB_PATH = Path(config_auth["userdbpath"])
-    SECRET_KEY = config_auth["secret"]
-    ALGORITHM = config_auth["algorithm"]
-    ACCESS_TOKEN_EXPIRES_DAYS = int(config_auth["tokenexpiresdays"])
+    DB_PATH = Path(config["dbpath"])
+    SECRET_KEY = config["secret"]
+
 else:
     logger.error("Section [Auth] not found in config")
+
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRES_DAYS = 3
 
 if not DB_PATH.exists():
     DB_PATH.touch()
@@ -48,10 +50,6 @@ class TokenData(BaseModel):
 class User(BaseModel):
     username: str
     bio: Annotated[str | None, Query(max_length=200)] = None
-    disabled: bool = False
-
-
-class UserInDB(User):
     hashed_password: str
 
 
@@ -71,8 +69,9 @@ def get_password_hash(plain_password):
 
 
 def get_user(username: str):
-    pass
-
+    return User(username=username)
+    # TODO: check in DB
+    
 
 def authenticate_user(username: str, plain_password: str):
     user = get_user(username)
@@ -114,14 +113,6 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     return user
 
 
-async def get_current_active_user(
-    current_user: Annotated[User, Depends(get_current_user)]
-):
-    if current_user.disabled:
-        raise HTTPException(status_code=400, detail="Inactive user")
-    return current_user
-
-
 @auth_app.post("/token", response_model=Token)
 async def login_for_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()]
@@ -142,5 +133,5 @@ async def login_for_access_token(
 
 
 @auth_app.get("/user/me/", response_model=User)
-async def read_user_me(current_user: Annotated[User, Depends(get_current_active_user)]):
+async def read_user_me(current_user: Annotated[User, Depends(get_current_user)]):
     return current_user
