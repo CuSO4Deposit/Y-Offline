@@ -1,3 +1,4 @@
+from contextlib import closing
 from datetime import datetime, timedelta
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -69,9 +70,18 @@ def get_password_hash(plain_password):
 
 
 def get_user(username: str):
-    return User(username=username)
-    # TODO: check in DB
-    
+    with closing(sqlite3.connect(DB_PATH)) as con:
+        with con:
+            con.row_factory = sqlite3.Row
+            cur = con.cursor()
+            cur.execute("SELECT * FROM [yoffline_user] WHERE [username] = ?", username)
+            record = cur.fetchone()
+            if record is None:
+                return None
+            return User(
+                username=record["username"], hashed_password=record["hashed_password"]
+            )
+
 
 def authenticate_user(username: str, plain_password: str):
     user = get_user(username)
