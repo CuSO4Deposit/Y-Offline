@@ -1,11 +1,10 @@
 from loguru import logger
-from modules.utils import get_config_info, get_project_root
+from modules.utils import get_config_info, get_project_root, init_project
 
+init_project()
 project_root = get_project_root()
 log_path = project_root / "log"
-log_path.mkdir(exist_ok=True)
-log_file = log_path / "Arcaea.log"
-log_file.touch(exist_ok=True)
+log_file = log_path / "arcaea.log"
 
 config_arcaea = get_config_info("Arcaea")
 if isinstance(config_arcaea, dict):

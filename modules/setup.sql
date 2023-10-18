@@ -1,6 +1,11 @@
 BEGIN;
 
-CREATE TABLE arcaea_record(
+CREATE TABLE [yoffline_user](
+[username] VARCHAR(32) PRIMARY KEY,
+[password] CHAR(64),
+[bio] TEXT);
+
+CREATE TABLE [arcaea_record](
         [song_id] TEXT NOT NULL,
         [rating_class] INTEGER NOT NULL DEFAULT 2,
         [pure] INTEGER NOT NULL,
@@ -11,7 +16,7 @@ CREATE TABLE arcaea_record(
         [user] TEXT NOT NULL,
         PRIMARY KEY([time], [user]));
 
-CREATE TABLE arcaea_best(
+CREATE TABLE [arcaea_best](
         [song_id] TEXT NOT NULL,
         [rating_class] INTEGER NOT NULL DEFAULT 2,
         [pure] INTEGER NOT NULL,
@@ -22,7 +27,7 @@ CREATE TABLE arcaea_best(
         [user] TEXT NOT NULL,
         PRIMARY KEY([time], [user]));
 
-CREATE TABLE arcaea_recent(
+CREATE TABLE [arcaea_recent](
         [song_id] TEXT NOT NULL,
         [rating_class] INTEGER NOT NULL DEFAULT 2,
         [pure] INTEGER NOT NULL,
@@ -33,7 +38,7 @@ CREATE TABLE arcaea_recent(
         [user] TEXT NOT NULL,
         PRIMARY KEY([time], [user]));
 
-CREATE TABLE arcaea_deleted_best(
+CREATE TABLE [arcaea_deleted_best](
         [song_id] TEXT NOT NULL,
         [rating_class] INTEGER NOT NULL DEFAULT 2,
         [pure] INTEGER NOT NULL,
@@ -45,7 +50,7 @@ CREATE TABLE arcaea_deleted_best(
         [deleted_time] INTEGER NOT NULL,
         PRIMARY KEY([time], [user]));
 
-CREATE TABLE arcaea_deleted_recent(
+CREATE TABLE [arcaea_deleted_recent](
         [song_id] TEXT NOT NULL,
         [rating_class] INTEGER NOT NULL DEFAULT 2,
         [pure] INTEGER NOT NULL,

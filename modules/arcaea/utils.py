@@ -84,15 +84,6 @@ class ArcaeaDbManager:
         if not arcsong_path.exists():
             logger.error("arcsong db does not exist.")
 
-        if not userdb_path.exists():
-            with closing(sqlite3.connect(userdb_path)) as con:
-                with con:
-                    with open(
-                        get_project_root() / "modules" / "arcaea" / "userdb_setup.sql"
-                    ) as f:
-                        setup_script = f.read()
-                        con.executescript(setup_script)
-
     def _select_joined(
         self,
         join_table: str,
